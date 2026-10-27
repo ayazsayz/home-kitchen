@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream: #faf6ef;
+  --color-paper: #ffffff;
+  --color-ink: #1f1a14;
+  --color-muted: #6f655a;
+  --color-line: #e8dfd2;
+  --color-brand: #c2410c;
+  --color-brand-dark: #9a3412;
+  --color-ok: #15803d;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Arabic", sans-serif;
+}
+
+html,
+body {
+  background: var(--color-cream);
+  color: var(--color-ink);
+}
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-2.5 font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-paper px-4 py-2.5 font-medium text-ink transition hover:bg-cream disabled:opacity-50;
+}
+.input {
+  @apply w-full rounded-xl border border-line bg-paper px-3 py-2.5 outline-none focus:border-brand focus:ring-2 focus:ring-brand/20;
+}
+.card {
+  @apply rounded-2xl border border-line bg-paper;
+}
+.label {
+  @apply mb-1 block text-sm font-medium text-muted;
+}
+
+/* ---------- 80mm thermal ticket ---------- */
+.ticket {
+  width: 72mm; /* printable width of 80mm paper */
+  font-family: ui-monospace, "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  color: #000;
+  background: #fff;
+}
+.ticket .big { font-size: 18px; font-weight: 700; }
+.ticket hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; }
+.ticket table { width: 100%; border-collapse: collapse; }
+.ticket td { vertical-align: top; padding: 1px 0; }
+
+@media print {
+  @page { size: 80mm auto; margin: 3mm 4mm; }
+  html, body { background: #fff !important; }
+  .no-print { display: none !important; }
+  .ticket { width: 100%; }
+}
