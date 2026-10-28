@@ -32,7 +32,7 @@ export default function SalesReport() {
     db.from("orders")
       .select("*, order_items(*)")
       .gte("created_at", dubaiDayStart(range.days))
-      .neq("status", "rejected")
+      .not("status", "in", "(rejected,pending_payment)")
       .order("created_at")
       .then(({ data }) => {
         setOrders((data ?? []).map((o) => normaliseOrder(o) as Order));
@@ -43,6 +43,7 @@ export default function SalesReport() {
   const stats = useMemo(() => {
     const revenue = round2(orders.reduce((s, o) => s + o.total, 0));
     const fees = round2(orders.reduce((s, o) => s + o.delivery_fee, 0));
+    const card = round2(orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + o.total, 0));
     const items = new Map<string, { qty: number; amount: number }>();
     const days = new Map<string, { count: number; amount: number }>();
     for (const o of orders) {
@@ -57,6 +58,8 @@ export default function SalesReport() {
     return {
       revenue,
       fees,
+      card,
+      cash: round2(revenue - card),
       count: orders.length,
       avg: orders.length ? round2(revenue / orders.length) : 0,
       top: [...items.entries()].sort((a, b) => b[1].qty - a[1].qty),
@@ -65,7 +68,7 @@ export default function SalesReport() {
   }, [orders]);
 
   function exportCsv() {
-    const head = ["order_no", "date", "status", "type", "customer", "phone", "items", "subtotal", "delivery_fee", "total"];
+    const head = ["order_no", "date", "status", "type", "customer", "phone", "items", "area", "payment", "subtotal", "delivery_fee", "total"];
     const rows = orders.map((o) => [
       o.order_no,
       new Date(o.created_at).toLocaleString("en-GB", { timeZone: "Asia/Dubai" }),
@@ -73,7 +76,9 @@ export default function SalesReport() {
       o.order_type,
       o.customer_name,
       o.customer_phone,
-      (o.order_items ?? []).map((i) => `${i.qty}x ${i.name}`).join("; "),
+      (o.order_items ?? []).map((i) => `${i.qty}x ${i.name}${i.options?.length ? ` (${i.options.map((x) => x.name).join(", ")})` : ""}`).join("; "),
+      o.zone_name ?? "",
+      o.payment_status === "paid" ? "card" : "cash",
       o.subtotal,
       o.delivery_fee,
       o.total,
@@ -101,13 +106,15 @@ export default function SalesReport() {
         <button className="btn-ghost text-sm" onClick={exportCsv} disabled={!orders.length}>Export CSV</button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <Stat label="Revenue" value={money(stats.revenue)} />
         <Stat label="Orders" value={String(stats.count)} />
         <Stat label="Average order" value={money(stats.avg)} />
         <Stat label="Delivery fees" value={money(stats.fees)} />
+        <Stat label="Cash" value={money(stats.cash)} />
+        <Stat label="Card" value={money(stats.card)} />
       </div>
-      <p className="text-xs text-muted">Excludes rejected orders. Includes orders still in progress.</p>
+      <p className="text-xs text-muted">Excludes rejected and unpaid card orders. Includes orders still in progress.</p>
 
       {loading ? (
         <p className="text-muted">Loading…</p>

@@ -3,9 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { money, normalise } from "@/lib/format";
 import type { Category, MenuItem } from "@/lib/types";
+import OptionGroupsEditor from "./OptionGroupsEditor";
 
 type Draft = Omit<MenuItem, "id"> & { id?: string };
-const EMPTY: Draft = { category_id: null, name: "", description: "", price: 0, image_url: "", available: true, sort: 0 };
+const EMPTY: Draft = {
+  category_id: null, name: "", description: "", price: 0, image_url: "", available: true, sort: 0, option_groups: [],
+};
 
 export default function MenuAdmin() {
   const db = useMemo(() => supabaseBrowser(), []);
@@ -22,7 +25,7 @@ export default function MenuAdmin() {
       db.from("menu_items").select("*").order("sort"),
     ]);
     setCats(c.data ?? []);
-    setItems((i.data ?? []).map((x) => normalise(x) as MenuItem));
+    setItems((i.data ?? []).map((x) => ({ ...normalise(x), option_groups: x.option_groups ?? [] }) as MenuItem));
   }, [db]);
   useEffect(() => {
     load();
@@ -79,7 +82,15 @@ export default function MenuAdmin() {
     setBusy(true);
     setErr("");
     const { id, ...row } = draft;
-    const payload = { ...row, price: Number(row.price) || 0, sort: Number(row.sort) || 0 };
+    const payload = {
+      ...row,
+      price: Number(row.price) || 0,
+      sort: Number(row.sort) || 0,
+      // drop empty choices / groups
+      option_groups: row.option_groups
+        .map((g) => ({ ...g, name: g.name.trim(), choices: g.choices.filter((c) => c.name.trim()) }))
+        .filter((g) => g.name && g.choices.length),
+    };
     const { error } = id
       ? await db.from("menu_items").update(payload).eq("id", id)
       : await db.from("menu_items").insert(payload);
@@ -142,7 +153,12 @@ export default function MenuAdmin() {
                   )}
                   <button className="min-w-0 flex-1 text-left" onClick={() => setDraft(i)}>
                     <div className="font-medium">{i.name}</div>
-                    <div className="truncate text-sm text-muted">{i.description}</div>
+                    <div className="truncate text-sm text-muted">
+                      {i.option_groups.length > 0 && (
+                        <span className="mr-1 rounded bg-cream px-1.5 text-xs">{i.option_groups.map((g) => g.name).join(" · ")}</span>
+                      )}
+                      {i.description}
+                    </div>
                   </button>
                   <span className="w-24 text-right">{money(i.price)}</span>
                   <label className="flex items-center gap-1.5 text-sm">
@@ -158,7 +174,7 @@ export default function MenuAdmin() {
 
       {draft && (
         <div className="fixed inset-0 z-30 grid place-items-center bg-black/40 p-4" onClick={() => setDraft(null)}>
-          <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card w-full max-w-md space-y-3 p-5">
+          <form onSubmit={save} onClick={(e) => e.stopPropagation()} className="card max-h-[92dvh] w-full max-w-lg space-y-3 overflow-y-auto p-5">
             <h2 className="text-lg font-bold">{draft.id ? "Edit dish" : "New dish"}</h2>
             <div>
               <label className="label">Name</label>
@@ -202,6 +218,7 @@ export default function MenuAdmin() {
                 <button type="button" className="text-sm text-red-600" onClick={() => setDraft({ ...draft, image_url: "" })}>Remove photo</button>
               </div>
             )}
+            <OptionGroupsEditor value={draft.option_groups} onChange={(option_groups) => setDraft({ ...draft, option_groups })} />
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" className="h-4 w-4 accent-ok" checked={draft.available}
                 onChange={(e) => setDraft({ ...draft, available: e.target.checked })} />
