@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
-import { money, normalise, normaliseOrder, timeShort } from "@/lib/format";
+import { currencyOf, money, normalise, normaliseOrder, timeShort } from "@/lib/format";
 import { printOrder, type PrintMode } from "@/lib/ticket";
 import { optionsText } from "@/lib/options";
 import { NOTIFY_STATUSES, renderMessage, whatsappLink } from "@/lib/whatsapp";
@@ -176,7 +176,7 @@ export default function OrdersBoard() {
     );
   const activeCount = orders.filter((o) => !isDone(o) && !isUpcoming(o, now)).length;
   const upcomingCount = orders.filter((o) => isUpcoming(o, now)).length;
-  const c = settings?.currency ?? "AED";
+  const c = settings ? currencyOf(settings) : undefined;
 
   return (
     <div className="space-y-4">

@@ -100,7 +100,7 @@ export default function OptionGroupsEditor({
                   onChange={(e) => setGroup(gi, { choices: g.choices.map((x, k) => (k === ci ? { ...x, name: e.target.value } : x)) })} />
                 <div className="flex w-28 shrink-0 items-center gap-1">
                   <span className="text-sm text-muted">+</span>
-                  <input className="input py-1.5" type="number" min={0} step="0.5" value={c.price}
+                  <input className="input py-1.5" type="number" min={0} step="any" value={c.price}
                     onChange={(e) => setGroup(gi, { choices: g.choices.map((x, k) => (k === ci ? { ...x, price: Number(e.target.value) || 0 } : x)) })} />
                 </div>
                 <label className="flex shrink-0 items-center gap-1 text-xs" title="Available">

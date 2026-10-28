@@ -1,4 +1,4 @@
-import { money, round2 } from "./format";
+import { decimalsOf, money, roundMoney, type Currency } from "./format";
 import type { PromoCode } from "./types";
 
 export type PromoResult = { ok: true; discount: number; label: string } | { ok: false; error: string };
@@ -6,7 +6,7 @@ export type PromoResult = { ok: true; discount: number; label: string } | { ok: 
 /** Only letters, digits, dash and underscore; upper-case. */
 export const cleanCode = (raw: string) => (raw ?? "").toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 30);
 
-export function promoLabel(p: Pick<PromoCode, "kind" | "value" | "max_discount">, currency = "AED") {
+export function promoLabel(p: Pick<PromoCode, "kind" | "value" | "max_discount">, currency?: string | Currency) {
   if (p.kind === "free_delivery") return "Free delivery";
   if (p.kind === "fixed") return `${money(p.value, currency)} off`;
   return `${Number(p.value)}% off${p.max_discount ? ` (up to ${money(p.max_discount, currency)})` : ""}`;
@@ -19,7 +19,7 @@ export function promoLabel(p: Pick<PromoCode, "kind" | "value" | "max_discount">
 export function computeDiscount(
   p: PromoCode,
   input: { subtotal: number; deliveryFee: number; isDelivery: boolean },
-  currency = "AED",
+  currency?: string | Currency,
   now = new Date(),
 ): PromoResult {
   if (!p.active) return { ok: false, error: "This code is no longer active" };
@@ -30,7 +30,7 @@ export function computeDiscount(
   }
   let discount = 0;
   if (p.kind === "percent") {
-    discount = round2((input.subtotal * Math.min(100, p.value)) / 100);
+    discount = roundMoney((input.subtotal * Math.min(100, p.value)) / 100, decimalsOf(currency));
     if (p.max_discount != null && p.max_discount > 0) discount = Math.min(discount, p.max_discount);
   } else if (p.kind === "fixed") {
     discount = Math.min(p.value, input.subtotal);
@@ -38,5 +38,5 @@ export function computeDiscount(
     if (!input.isDelivery) return { ok: false, error: "This code gives free delivery, so it only works for delivery orders" };
     discount = input.deliveryFee;
   }
-  return { ok: true, discount: round2(discount), label: promoLabel(p, currency) };
+  return { ok: true, discount: roundMoney(discount, decimalsOf(currency)), label: promoLabel(p, currency) };
 }

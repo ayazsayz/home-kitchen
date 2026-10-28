@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getOrder, getSettings } from "@/lib/data";
-import { money, timeShort } from "@/lib/format";
+import { currencyOf, money, timeShort } from "@/lib/format";
 import { optionsText } from "@/lib/options";
 import { cardAvailable, syncPayment } from "@/lib/payments/service";
 import type { OrderStatus } from "@/lib/types";
@@ -44,7 +44,7 @@ export default async function OrderPage({
   }
   const settings = await getSettings();
 
-  const c = settings.currency;
+  const c = currencyOf(settings);
   const steps = STEPS.filter((s) => !(order.order_type === "pickup" && s.key === "out_for_delivery"));
   const current = steps.findIndex((s) => s.key === order.status);
   const finished = order.status === "completed" || order.status === "rejected";

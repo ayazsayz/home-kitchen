@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { money, normalise } from "@/lib/format";
+import { useShopCurrency } from "@/lib/use-currency";
 import { cleanCode, promoLabel } from "@/lib/promo";
 import type { PromoCode, PromoKind } from "@/lib/types";
 
@@ -43,6 +44,7 @@ function status(p: PromoCode, uses: number) {
 
 export default function PromosAdmin() {
   const db = useMemo(() => supabaseBrowser(), []);
+  const cur = useShopCurrency();
   const [promos, setPromos] = useState<PromoCode[]>([]);
   const [uses, setUses] = useState<Record<string, { count: number; discount: number }>>({});
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -157,7 +159,7 @@ export default function PromosAdmin() {
                 const u = uses[p.code.toUpperCase()] ?? { count: 0, discount: 0 };
                 const st = status(p, u.count);
                 const rules = [
-                  p.min_order > 0 && `min ${money(p.min_order)}`,
+                  p.min_order > 0 && `min ${money(p.min_order, cur)}`,
                   p.first_order_only && "first order",
                   p.per_customer_limit != null && `${p.per_customer_limit}× per customer`,
                   p.ends_at && `until ${toDay(p.ends_at)}`,
@@ -168,10 +170,10 @@ export default function PromosAdmin() {
                       <button className="font-mono font-semibold text-brand" onClick={() => edit(p)}>{p.code}</button>
                       {p.description && <div className="text-xs text-muted">{p.description}</div>}
                     </td>
-                    <td className="px-2 py-2">{promoLabel(p)}</td>
+                    <td className="px-2 py-2">{promoLabel(p, cur)}</td>
                     <td className="px-2 py-2 text-muted">{rules.join(" · ") || "—"}</td>
                     <td className="px-2 py-2 text-right">{u.count}{p.usage_limit != null && <span className="text-muted"> / {p.usage_limit}</span>}</td>
-                    <td className="px-2 py-2 text-right text-muted">{money(u.discount)}</td>
+                    <td className="px-2 py-2 text-right text-muted">{money(u.discount, cur)}</td>
                     <td className="px-4 py-2">
                       <button onClick={() => toggle(p)} title="Click to turn on/off" className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${st.tone}`}>
                         {st.label}
@@ -198,7 +200,7 @@ export default function PromosAdmin() {
             </Field>
             <Field label="Offer">
               <div className="grid grid-cols-3 gap-2">
-                {([["percent", "% off"], ["fixed", "AED off"], ["free_delivery", "Free delivery"]] as [PromoKind, string][]).map(([k, l]) => (
+                {([["percent", "% off"], ["fixed", `${cur.code} off`], ["free_delivery", "Free delivery"]] as [PromoKind, string][]).map(([k, l]) => (
                   <button type="button" key={k} onClick={() => set({ kind: k })}
                     className={`rounded-xl border px-2 py-2 text-sm font-medium ${draft.kind === k ? "border-brand bg-brand/10 text-brand-dark" : "border-line"}`}>
                     {l}
@@ -208,19 +210,19 @@ export default function PromosAdmin() {
             </Field>
             {draft.kind !== "free_delivery" && (
               <div className="grid grid-cols-2 gap-3">
-                <Field label={draft.kind === "percent" ? "Percent off" : "Amount off (AED)"}>
-                  <input className="input" type="number" min={0} step="0.5" required value={draft.value} onChange={(e) => set({ value: e.target.value })} />
+                <Field label={draft.kind === "percent" ? "Percent off" : `Amount off (${cur.code})`}>
+                  <input className="input" type="number" min={0} step="any" required value={draft.value} onChange={(e) => set({ value: e.target.value })} />
                 </Field>
                 {draft.kind === "percent" && (
-                  <Field label="Max discount (AED)">
-                    <input className="input" type="number" min={0} step="1" placeholder="No cap" value={draft.max_discount} onChange={(e) => set({ max_discount: e.target.value })} />
+                  <Field label={`Max discount (${cur.code})`}>
+                    <input className="input" type="number" min={0} step="any" placeholder="No cap" value={draft.max_discount} onChange={(e) => set({ max_discount: e.target.value })} />
                   </Field>
                 )}
               </div>
             )}
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Minimum order (AED)">
-                <input className="input" type="number" min={0} step="1" placeholder="None" value={draft.min_order} onChange={(e) => set({ min_order: e.target.value })} />
+              <Field label={`Minimum order (${cur.code})`}>
+                <input className="input" type="number" min={0} step="any" placeholder="None" value={draft.min_order} onChange={(e) => set({ min_order: e.target.value })} />
               </Field>
               <Field label="Total uses">
                 <input className="input" type="number" min={1} step="1" placeholder="Unlimited" value={draft.usage_limit} onChange={(e) => set({ usage_limit: e.target.value })} />

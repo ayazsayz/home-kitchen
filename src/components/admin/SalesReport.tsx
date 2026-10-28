@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
-import { money, normaliseOrder, round2 } from "@/lib/format";
+import { money, normaliseOrder, roundMoney } from "@/lib/format";
+import { useShopCurrency } from "@/lib/use-currency";
 import type { Order } from "@/lib/types";
 
 const RANGES = [
@@ -23,6 +24,7 @@ const dubaiDate = (iso: string) => new Date(new Date(iso).getTime() + 4 * 3600 *
 
 export default function SalesReport() {
   const db = useMemo(() => supabaseBrowser(), []);
+  const cur = useShopCurrency();
   const [range, setRange] = useState<(typeof RANGES)[number]>(RANGES[0]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,29 +43,29 @@ export default function SalesReport() {
   }, [db, range]);
 
   const stats = useMemo(() => {
-    const revenue = round2(orders.reduce((s, o) => s + o.total, 0));
-    const fees = round2(orders.reduce((s, o) => s + o.delivery_fee, 0));
-    const discounts = round2(orders.reduce((s, o) => s + (o.discount || 0), 0));
-    const card = round2(orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + o.total, 0));
+    const revenue = roundMoney(orders.reduce((s, o) => s + o.total, 0), 3);
+    const fees = roundMoney(orders.reduce((s, o) => s + o.delivery_fee, 0), 3);
+    const discounts = roundMoney(orders.reduce((s, o) => s + (o.discount || 0), 0), 3);
+    const card = roundMoney(orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + o.total, 0), 3);
     const items = new Map<string, { qty: number; amount: number }>();
     const days = new Map<string, { count: number; amount: number }>();
     for (const o of orders) {
       for (const i of o.order_items ?? []) {
-        const cur = items.get(i.name) ?? { qty: 0, amount: 0 };
-        items.set(i.name, { qty: cur.qty + i.qty, amount: round2(cur.amount + i.line_total) });
+        const acc = items.get(i.name) ?? { qty: 0, amount: 0 };
+        items.set(i.name, { qty: acc.qty + i.qty, amount: roundMoney(acc.amount + i.line_total, 3) });
       }
       const d = dubaiDate(o.created_at);
       const cd = days.get(d) ?? { count: 0, amount: 0 };
-      days.set(d, { count: cd.count + 1, amount: round2(cd.amount + o.total) });
+      days.set(d, { count: cd.count + 1, amount: roundMoney(cd.amount + o.total, 3) });
     }
     return {
       revenue,
       fees,
       card,
       discounts,
-      cash: round2(revenue - card),
+      cash: roundMoney(revenue - card, 3),
       count: orders.length,
-      avg: orders.length ? round2(revenue / orders.length) : 0,
+      avg: orders.length ? roundMoney(revenue / orders.length, 3) : 0,
       top: [...items.entries()].sort((a, b) => b[1].qty - a[1].qty),
       days: [...days.entries()].sort((a, b) => b[0].localeCompare(a[0])),
     };
@@ -108,17 +110,18 @@ export default function SalesReport() {
           </button>
         ))}
         <span className="flex-1" />
+        <a href="/admin/expenses" className="text-sm text-brand">Profit & expenses →</a>
         <button className="btn-ghost text-sm" onClick={exportCsv} disabled={!orders.length}>Export CSV</button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <Stat label="Revenue" value={money(stats.revenue)} />
+        <Stat label="Revenue" value={money(stats.revenue, cur)} />
         <Stat label="Orders" value={String(stats.count)} />
-        <Stat label="Average order" value={money(stats.avg)} />
-        <Stat label="Delivery fees" value={money(stats.fees)} />
-        <Stat label="Cash" value={money(stats.cash)} />
-        <Stat label="Card" value={money(stats.card)} />
-        <Stat label="Promo discounts" value={money(stats.discounts)} />
+        <Stat label="Average order" value={money(stats.avg, cur)} />
+        <Stat label="Delivery fees" value={money(stats.fees, cur)} />
+        <Stat label="Cash" value={money(stats.cash, cur)} />
+        <Stat label="Card" value={money(stats.card, cur)} />
+        <Stat label="Promo discounts" value={money(stats.discounts, cur)} />
       </div>
       <p className="text-xs text-muted">Excludes rejected and unpaid card orders. Includes orders still in progress.</p>
 
@@ -135,7 +138,7 @@ export default function SalesReport() {
                   <tr key={name} className="border-b border-line last:border-0">
                     <td className="py-1.5">{name}</td>
                     <td className="py-1.5 text-right font-medium">{v.qty}</td>
-                    <td className="w-28 py-1.5 text-right text-muted">{money(v.amount)}</td>
+                    <td className="w-28 py-1.5 text-right text-muted">{money(v.amount, cur)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -149,7 +152,7 @@ export default function SalesReport() {
                   <span className="text-muted">{d}</span>
                   <span className="h-2.5 rounded-full bg-brand/80" style={{ width: `${(v.amount / maxDay) * 100}%` }} />
                   <span className="text-right">
-                    {money(v.amount)} <span className="text-muted">({v.count})</span>
+                    {money(v.amount, cur)} <span className="text-muted">({v.count})</span>
                   </span>
                 </li>
               ))}

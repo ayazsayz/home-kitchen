@@ -1,4 +1,10 @@
+import { currencyOf } from "./format";
 import type { Settings } from "./types";
+
+export const DEFAULT_EXPENSE_CATEGORIES = [
+  "Meat", "Chicken", "Vegetables & fruit", "Bread & buns", "Dairy", "Spices & oil", "Groceries", "Packaging",
+  "Gas", "Delivery & fuel", "Utilities", "Rent", "Salaries", "Equipment", "Marketing", "Other",
+];
 
 /** Fills in defaults so older databases (before a migration) still work. */
 export function withSettingDefaults(s: Record<string, unknown>): Settings {
@@ -6,6 +12,10 @@ export function withSettingDefaults(s: Record<string, unknown>): Settings {
     ...(s as Settings),
     whatsapp_templates: (s.whatsapp_templates as Settings["whatsapp_templates"]) ?? {},
     card_enabled: Boolean(s.card_enabled),
+    expense_categories: Array.isArray(s.expense_categories) && s.expense_categories.length ? (s.expense_categories as string[]) : DEFAULT_EXPENSE_CATEGORIES,
+    currency: String(s.currency || "AED").toUpperCase(),
+    currency_symbol: String(s.currency_symbol ?? ""),
+    currency_decimals: s.currency_decimals == null ? currencyOf({ currency: String(s.currency || "AED") }).decimals! : Number(s.currency_decimals),
     auto_hours: Boolean(s.auto_hours),
     hours: (s.hours as Settings["hours"]) ?? {},
     allow_asap: s.allow_asap !== false,

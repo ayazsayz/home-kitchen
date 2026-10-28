@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { money } from "@/lib/format";
+import { money, type Currency } from "@/lib/format";
 import { resolveOptions } from "@/lib/options";
 import type { MenuItem } from "@/lib/types";
 
@@ -12,7 +12,7 @@ export default function OptionsSheet({
   onAdd,
 }: {
   item: MenuItem;
-  currency: string;
+  currency: Currency;
   onClose: () => void;
   onAdd: (choiceIds: string[], labels: string[], unitPrice: number, qty: number) => void;
 }) {

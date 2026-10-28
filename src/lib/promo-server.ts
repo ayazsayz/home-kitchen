@@ -1,6 +1,7 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase-server";
 import { normalise } from "./format";
+import type { Currency } from "./format";
 import { cleanCode, computeDiscount, type PromoResult } from "./promo";
 import type { PromoCode } from "./types";
 
@@ -8,7 +9,7 @@ import type { PromoCode } from "./types";
 export async function checkPromo(
   rawCode: string,
   input: { subtotal: number; deliveryFee: number; isDelivery: boolean; phone: string },
-  currency = "AED",
+  currency?: string | Currency,
 ): Promise<PromoResult & { code?: string }> {
   const code = cleanCode(rawCode);
   if (!code) return { ok: false, error: "Enter a promo code" };

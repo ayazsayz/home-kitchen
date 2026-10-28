@@ -8,7 +8,7 @@ export type CheckoutInput = {
   orderId: string;
   orderNo: number;
   amount: number; // major units, e.g. 32.50
-  currency: string; // "AED"
+  currency: string; // ISO code, e.g. "AED"
   description: string;
   successUrl: string;
   cancelUrl: string;
@@ -22,7 +22,15 @@ export interface PaymentProvider {
   check(ref: string): Promise<PaymentCheck>;
 }
 
-const minor = (n: number) => Math.round(n * 100);
+// ISO 4217 minor units (what payment APIs expect) — not the same as how prices are shown
+// (e.g. PKR is displayed without decimals but still has 2 minor units).
+const THREE = ["BHD", "IQD", "JOD", "KWD", "LYD", "OMR", "TND"];
+const ZERO = ["BIF", "CLP", "DJF", "GNF", "ISK", "JPY", "KMF", "KRW", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF"];
+const exponent = (code: string) => (THREE.includes(code) ? 3 : ZERO.includes(code) ? 0 : 2);
+const minor = (n: number, code: string) => {
+  const v = Math.round(n * 10 ** exponent(code));
+  return exponent(code) === 3 ? Math.round(v / 10) * 10 : v; // Stripe requires 3-decimal amounts to end in 0
+};
 
 // ---------- Ziina (UAE) — https://docs.ziina.com ----------
 function ziina(apiKey: string, test: boolean): PaymentProvider {
@@ -35,7 +43,7 @@ function ziina(apiKey: string, test: boolean): PaymentProvider {
         method: "POST",
         headers,
         body: JSON.stringify({
-          amount: minor(i.amount),
+          amount: minor(i.amount, i.currency.toUpperCase()),
           currency_code: i.currency,
           message: i.description,
           success_url: i.successUrl,
@@ -76,7 +84,7 @@ function stripe(secretKey: string): PaymentProvider {
         "metadata[order_id]": i.orderId,
         "line_items[0][quantity]": "1",
         "line_items[0][price_data][currency]": i.currency.toLowerCase(),
-        "line_items[0][price_data][unit_amount]": String(minor(i.amount)),
+        "line_items[0][price_data][unit_amount]": String(minor(i.amount, i.currency.toUpperCase())),
         "line_items[0][price_data][product_data][name]": i.description,
       });
       const res = await fetch(`${base}/checkout/sessions`, { method: "POST", headers, body });

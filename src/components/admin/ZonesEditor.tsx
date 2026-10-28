@@ -93,11 +93,11 @@ export default function ZonesEditor() {
                   <input className="input py-1.5" placeholder="e.g. Al Nahda" value={r.name} onChange={(e) => set(i, { name: e.target.value })} />
                 </td>
                 <td className="px-2 py-1.5">
-                  <input className="input py-1.5" type="number" min={0} step="0.5" value={r.fee}
+                  <input className="input py-1.5" type="number" min={0} step="any" value={r.fee}
                     onChange={(e) => set(i, { fee: e.target.value as unknown as number })} />
                 </td>
                 <td className="px-2 py-1.5">
-                  <input className="input py-1.5" type="number" min={0} step="1" placeholder="Default" value={r.min_order ?? ""}
+                  <input className="input py-1.5" type="number" min={0} step="any" placeholder="Default" value={r.min_order ?? ""}
                     onChange={(e) => set(i, { min_order: e.target.value === "" ? null : (e.target.value as unknown as number) })} />
                 </td>
                 <td className="px-2 py-1.5 text-center">

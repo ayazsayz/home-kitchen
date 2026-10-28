@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useCart } from "@/lib/cart";
-import { money } from "@/lib/format";
+import { currencyOf, money } from "@/lib/format";
 import type { Category, MenuItem, Settings } from "@/lib/types";
 import type { Availability } from "@/lib/data";
 import { fmtWhen } from "@/lib/schedule";
@@ -20,6 +20,7 @@ export default function MenuClient({
   items: MenuItem[];
 }) {
   const cart = useCart();
+  const cur = currencyOf(settings);
   const [q, setQ] = useState("");
   const [picking, setPicking] = useState<MenuItem | null>(null);
 
@@ -91,7 +92,7 @@ export default function MenuClient({
                       <div className="font-semibold">{i.name}</div>
                       {i.description && <p className="text-sm text-muted">{i.description}</p>}
                       <div className="mt-1 font-medium">
-                        {money(i.price, settings.currency)}
+                        {money(i.price, cur)}
                         {withOpts && <span className="ml-2 text-xs font-normal text-muted">Options available</span>}
                       </div>
                     </div>
@@ -127,7 +128,7 @@ export default function MenuClient({
       {picking && (
         <OptionsSheet
           item={picking}
-          currency={settings.currency}
+          currency={cur}
           onClose={() => setPicking(null)}
           onAdd={(choiceIds, labels, unit, qty) => {
             cart.add({ id: picking.id, name: picking.name, price: unit, choiceIds, optionLabels: labels }, qty);
@@ -142,7 +143,7 @@ export default function MenuClient({
             <span>
               {cart.count} item{cart.count > 1 ? "s" : ""}
             </span>
-            <span>Checkout · {money(cart.subtotal, settings.currency)}</span>
+            <span>Checkout · {money(cart.subtotal, cur)}</span>
           </Link>
         </div>
       )}
