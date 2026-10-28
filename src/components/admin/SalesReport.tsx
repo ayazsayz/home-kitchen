@@ -43,6 +43,7 @@ export default function SalesReport() {
   const stats = useMemo(() => {
     const revenue = round2(orders.reduce((s, o) => s + o.total, 0));
     const fees = round2(orders.reduce((s, o) => s + o.delivery_fee, 0));
+    const discounts = round2(orders.reduce((s, o) => s + (o.discount || 0), 0));
     const card = round2(orders.filter((o) => o.payment_status === "paid").reduce((s, o) => s + o.total, 0));
     const items = new Map<string, { qty: number; amount: number }>();
     const days = new Map<string, { count: number; amount: number }>();
@@ -59,6 +60,7 @@ export default function SalesReport() {
       revenue,
       fees,
       card,
+      discounts,
       cash: round2(revenue - card),
       count: orders.length,
       avg: orders.length ? round2(revenue / orders.length) : 0,
@@ -68,7 +70,7 @@ export default function SalesReport() {
   }, [orders]);
 
   function exportCsv() {
-    const head = ["order_no", "date", "status", "type", "customer", "phone", "items", "area", "payment", "subtotal", "delivery_fee", "total"];
+    const head = ["order_no", "date", "status", "type", "customer", "phone", "items", "area", "payment", "scheduled_for", "promo_code", "discount", "subtotal", "delivery_fee", "total"];
     const rows = orders.map((o) => [
       o.order_no,
       new Date(o.created_at).toLocaleString("en-GB", { timeZone: "Asia/Dubai" }),
@@ -79,6 +81,9 @@ export default function SalesReport() {
       (o.order_items ?? []).map((i) => `${i.qty}x ${i.name}${i.options?.length ? ` (${i.options.map((x) => x.name).join(", ")})` : ""}`).join("; "),
       o.zone_name ?? "",
       o.payment_status === "paid" ? "card" : "cash",
+      o.scheduled_for ? new Date(o.scheduled_for).toLocaleString("en-GB", { timeZone: "Asia/Dubai" }) : "",
+      o.promo_code ?? "",
+      o.discount ?? 0,
       o.subtotal,
       o.delivery_fee,
       o.total,
@@ -113,6 +118,7 @@ export default function SalesReport() {
         <Stat label="Delivery fees" value={money(stats.fees)} />
         <Stat label="Cash" value={money(stats.cash)} />
         <Stat label="Card" value={money(stats.card)} />
+        <Stat label="Promo discounts" value={money(stats.discounts)} />
       </div>
       <p className="text-xs text-muted">Excludes rejected and unpaid card orders. Includes orders still in progress.</p>
 

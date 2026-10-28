@@ -5,6 +5,8 @@ import { money, normalise, normaliseOrder, timeShort } from "@/lib/format";
 import { printOrder, type PrintMode } from "@/lib/ticket";
 import { optionsText } from "@/lib/options";
 import { NOTIFY_STATUSES, renderMessage, whatsappLink } from "@/lib/whatsapp";
+import { fmtWhen } from "@/lib/schedule";
+import { mapsLink } from "@/lib/maps";
 import { STATUS_LABEL, type Order, type OrderStatus, type Settings } from "@/lib/types";
 
 const PRINTER_KEY = "hk_printer_v1";
@@ -17,7 +19,12 @@ const NEXT: Partial<Record<OrderStatus, { to: OrderStatus; label: string }>> = {
   preparing: { to: "ready", label: "Mark ready" },
 };
 
-type Tab = "active" | "done" | "rejected";
+type Tab = "active" | "upcoming" | "done" | "rejected";
+const UPCOMING_MIN = 90; // accepted scheduled orders due later than this move to "Upcoming"
+const isDone = (o: Order) => o.status === "completed" || o.status === "rejected";
+const isUpcoming = (o: Order, now: number) =>
+  !isDone(o) && o.status !== "new" && !!o.scheduled_for && +new Date(o.scheduled_for) - now > UPCOMING_MIN * 60000;
+const dueAt = (o: Order) => +new Date(o.scheduled_for ?? o.created_at);
 
 export default function OrdersBoard() {
   const db = useMemo(() => supabaseBrowser(), []);
@@ -150,14 +157,25 @@ export default function OrdersBoard() {
     beep();
   }
 
-  const shown = orders.filter((o) =>
-    tab === "active"
-      ? !["completed", "rejected"].includes(o.status)
-      : tab === "done"
-        ? o.status === "completed"
-        : o.status === "rejected",
-  );
-  const activeCount = orders.filter((o) => !["completed", "rejected"].includes(o.status)).length;
+  const now = Date.now();
+  const shown = orders
+    .filter((o) =>
+      tab === "active"
+        ? !isDone(o) && !isUpcoming(o, now)
+        : tab === "upcoming"
+          ? isUpcoming(o, now)
+          : tab === "done"
+            ? o.status === "completed"
+            : o.status === "rejected",
+    )
+    // Active/upcoming: new orders first, then by when they're due. History: newest first.
+    .sort((a, b) =>
+      tab === "active" || tab === "upcoming"
+        ? Number(b.status === "new") - Number(a.status === "new") || dueAt(a) - dueAt(b)
+        : +new Date(b.created_at) - +new Date(a.created_at),
+    );
+  const activeCount = orders.filter((o) => !isDone(o) && !isUpcoming(o, now)).length;
+  const upcomingCount = orders.filter((o) => isUpcoming(o, now)).length;
   const c = settings?.currency ?? "AED";
 
   return (
@@ -205,6 +223,7 @@ export default function OrdersBoard() {
         {(
           [
             ["active", `Active (${activeCount})`],
+            ["upcoming", `Upcoming (${upcomingCount})`],
             ["done", "Completed"],
             ["rejected", "Rejected"],
           ] as [Tab, string][]
@@ -247,6 +266,15 @@ export default function OrdersBoard() {
                     {timeShort(o.created_at)} · {o.order_type === "pickup" ? "Pickup" : "Delivery"}
                     {o.zone_name ? ` · ${o.zone_name}` : ""}
                   </div>
+                  {o.scheduled_for && (() => {
+                    const mins = (+new Date(o.scheduled_for) - now) / 60000;
+                    const tone = isDone(o) ? "bg-cream text-muted" : mins <= 30 ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-900";
+                    return (
+                      <div className={`mt-1 inline-block rounded-md px-2 py-0.5 text-sm font-semibold ${tone}`}>
+                        ⏰ For {fmtWhen(o.scheduled_for)}
+                      </div>
+                    );
+                  })()}
                 </div>
                 <span className="rounded-full bg-cream px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[o.status]}</span>
               </header>
@@ -264,6 +292,12 @@ export default function OrdersBoard() {
                   </li>
                 ))}
               </ul>
+              {o.discount > 0 && (
+                <p className="mb-2 flex justify-between text-sm text-ok">
+                  <span>Promo {o.promo_code}</span>
+                  <span>− {money(o.discount, c)}</span>
+                </p>
+              )}
               {o.notes && <p className="mb-2 rounded-lg bg-amber-50 px-2 py-1 text-sm">📝 {o.notes}</p>}
 
               <div className="text-sm">
@@ -274,6 +308,9 @@ export default function OrdersBoard() {
                   WhatsApp
                 </a>
                 {o.address && <p className="text-muted">{o.address}</p>}
+                {mapsLink(o) && (
+                  <a href={mapsLink(o)} target="_blank" rel="noreferrer" className="text-brand">📍 Open in Google Maps</a>
+                )}
               </div>
 
               <div className="mt-2 flex items-center justify-between border-t border-line pt-2 font-semibold">

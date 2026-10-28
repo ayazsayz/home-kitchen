@@ -1,0 +1,21 @@
+import type { Settings } from "./types";
+
+/** Fills in defaults so older databases (before a migration) still work. */
+export function withSettingDefaults(s: Record<string, unknown>): Settings {
+  return {
+    ...(s as Settings),
+    whatsapp_templates: (s.whatsapp_templates as Settings["whatsapp_templates"]) ?? {},
+    card_enabled: Boolean(s.card_enabled),
+    auto_hours: Boolean(s.auto_hours),
+    hours: (s.hours as Settings["hours"]) ?? {},
+    allow_asap: s.allow_asap !== false,
+    allow_scheduled: Boolean(s.allow_scheduled),
+    slot_minutes: Number(s.slot_minutes) || 30,
+    slot_capacity: Number(s.slot_capacity) || 0,
+    lead_minutes: s.lead_minutes == null ? 45 : Number(s.lead_minutes),
+    days_ahead: s.days_ahead == null ? 2 : Number(s.days_ahead),
+    require_pin: Boolean(s.require_pin),
+    map_center_lat: Number(s.map_center_lat) || 25.2048,
+    map_center_lng: Number(s.map_center_lng) || 55.2708,
+  };
+}

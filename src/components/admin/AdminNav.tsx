@@ -6,6 +6,7 @@ import { supabaseBrowser } from "@/lib/supabase";
 const LINKS = [
   { href: "/admin", label: "Orders" },
   { href: "/admin/menu", label: "Menu" },
+  { href: "/admin/promos", label: "Promos" },
   { href: "/admin/sales", label: "Sales" },
   { href: "/admin/settings", label: "Settings" },
 ];

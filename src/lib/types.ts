@@ -28,6 +28,42 @@ export type Settings = {
   closed_message: string;
   whatsapp_templates: WhatsAppTemplates;
   card_enabled: boolean;
+  // opening hours & scheduling
+  auto_hours: boolean;
+  hours: WeeklyHours;
+  allow_asap: boolean;
+  allow_scheduled: boolean;
+  slot_minutes: number;
+  slot_capacity: number;
+  lead_minutes: number;
+  days_ahead: number;
+  // map
+  require_pin: boolean;
+  map_center_lat: number;
+  map_center_lng: number;
+};
+
+/** "HH:MM" in Dubai time. close < open means it runs past midnight. */
+export type TimeRange = { open: string; close: string };
+/** Keyed "0".."6", 0 = Sunday. Missing or [] = closed that day. */
+export type WeeklyHours = Partial<Record<string, TimeRange[]>>;
+
+export type PromoKind = "percent" | "fixed" | "free_delivery";
+export type PromoCode = {
+  id: string;
+  code: string;
+  description: string;
+  kind: PromoKind;
+  value: number;
+  min_order: number;
+  max_discount: number | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  usage_limit: number | null;
+  per_customer_limit: number | null;
+  first_order_only: boolean;
+  active: boolean;
+  created_at: string;
 };
 
 export type DeliveryZone = {
@@ -87,6 +123,11 @@ export type Order = {
   address: string;
   zone_name: string;
   notes: string;
+  scheduled_for: string | null;
+  promo_code: string | null;
+  discount: number;
+  location_lat: number | null;
+  location_lng: number | null;
   subtotal: number;
   delivery_fee: number;
   total: number;

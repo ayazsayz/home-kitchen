@@ -5,6 +5,7 @@ import { money, timeShort } from "@/lib/format";
 import { optionsText } from "@/lib/options";
 import { cardAvailable, syncPayment } from "@/lib/payments/service";
 import type { OrderStatus } from "@/lib/types";
+import { fmtWhen } from "@/lib/schedule";
 import AutoRefresh from "@/components/AutoRefresh";
 import PaymentActions from "@/components/PaymentActions";
 
@@ -56,7 +57,12 @@ export default async function OrderPage({
       <div>
         <p className="text-sm text-muted">{settings.name}</p>
         <h1 className="text-2xl font-bold">Order #{order.order_no}</h1>
-        <p className="text-sm text-muted">{timeShort(order.created_at)}</p>
+        <p className="text-sm text-muted">Placed {timeShort(order.created_at)}</p>
+        {order.scheduled_for && (
+          <p className="mt-2 inline-block rounded-lg bg-brand/10 px-3 py-1 font-medium text-brand-dark">
+            ⏰ {order.order_type === "pickup" ? "Pickup" : "Delivery"} {fmtWhen(order.scheduled_for)}
+          </p>
+        )}
       </div>
 
       {awaitingPayment ? (
@@ -108,6 +114,12 @@ export default async function OrderPage({
           <div className="flex justify-between p-3 text-muted">
             <span>Delivery{order.zone_name ? ` · ${order.zone_name}` : ""}</span>
             <span>{money(order.delivery_fee, c)}</span>
+          </div>
+        )}
+        {order.discount > 0 && (
+          <div className="flex justify-between p-3 text-ok">
+            <span>Discount{order.promo_code ? ` · ${order.promo_code}` : ""}</span>
+            <span>− {money(order.discount, c)}</span>
           </div>
         )}
         <div className="flex justify-between p-3 font-bold">

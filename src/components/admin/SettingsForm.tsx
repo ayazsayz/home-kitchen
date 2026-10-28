@@ -5,6 +5,8 @@ import { normalise } from "@/lib/format";
 import { printOrder } from "@/lib/ticket";
 import { DEFAULT_TEMPLATES, NOTIFY_STATUSES, PLACEHOLDERS } from "@/lib/whatsapp";
 import { STATUS_LABEL, type Order, type OrderStatus, type Settings } from "@/lib/types";
+import { withSettingDefaults } from "@/lib/settings";
+import HoursSettings from "./HoursSettings";
 
 export default function SettingsForm({ paymentProvider }: { paymentProvider: string | null }) {
   const db = useMemo(() => supabaseBrowser(), []);
@@ -12,7 +14,7 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    db.from("settings").select("*").eq("id", 1).single().then(({ data }) => data && setS({ ...(normalise(data) as Settings), whatsapp_templates: data.whatsapp_templates ?? {}, card_enabled: !!data.card_enabled }));
+    db.from("settings").select("*").eq("id", 1).single().then(({ data }) => data && setS(withSettingDefaults(normalise(data))));
   }, [db]);
 
   if (!s) return <p className="text-muted">Loading…</p>;
@@ -35,6 +37,17 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
         closed_message: s.closed_message,
         whatsapp_templates: s.whatsapp_templates,
         card_enabled: s.card_enabled,
+        hours: s.hours,
+        auto_hours: s.auto_hours,
+        allow_asap: s.allow_asap,
+        allow_scheduled: s.allow_scheduled,
+        slot_minutes: Math.max(10, Math.round(s.slot_minutes) || 30),
+        slot_capacity: Math.max(0, Math.round(s.slot_capacity) || 0),
+        lead_minutes: Math.max(0, Math.round(s.lead_minutes) || 0),
+        days_ahead: Math.min(14, Math.max(0, Math.round(s.days_ahead) || 0)),
+        require_pin: s.require_pin,
+        map_center_lat: Number(s.map_center_lat) || 25.2048,
+        map_center_lng: Number(s.map_center_lng) || 55.2708,
         updated_at: new Date().toISOString(),
       })
       .eq("id", 1);
@@ -50,6 +63,8 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
       notes: "Test print", subtotal: 32, delivery_fee: Number(s.delivery_fee) || 0,
       total: 32 + (Number(s.delivery_fee) || 0), vat_percent: Number(s.vat_percent) || 0,
       payment_method: "cod", payment_status: "unpaid", zone_name: "Al Nahda", printed_at: null, created_at: new Date().toISOString(),
+      scheduled_for: new Date(Date.now() + 3 * 3600e3).toISOString(), promo_code: "WELCOME10", discount: 3.2,
+      location_lat: Number(s.map_center_lat) || 25.2048, location_lng: Number(s.map_center_lng) || 55.2708,
       order_items: [
         { id: "a", order_id: "test", menu_item_id: null, name: "Chicken Biryani", unit_price: 28, qty: 1, line_total: 28, options: [{ group: "Spice level", name: "Medium", price: 0 }] },
         { id: "b", order_id: "test", menu_item_id: null, name: "Garlic Naan", unit_price: 4, qty: 1, line_total: 4, options: [] },
@@ -70,6 +85,8 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
         <input type="checkbox" className="h-6 w-6 accent-ok" checked={s.is_open} onChange={(e) => set("is_open", e.target.checked)} />
       </label>
 
+      <HoursSettings s={s} set={set} />
+
       <div className="card space-y-3 p-4">
         <Field label="Restaurant name"><input className="input" value={s.name} onChange={(e) => set("name", e.target.value)} /></Field>
         <Field label="Phone (shown to customers)"><input className="input" value={s.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
@@ -82,6 +99,23 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
         <Field label="Minimum order (AED)"><input className="input" type="number" min={0} step="1" value={s.min_order} onChange={(e) => set("min_order", e.target.value as unknown as number)} /></Field>
         <Field label="VAT % (0 if not registered)"><input className="input" type="number" min={0} step="0.01" value={s.vat_percent} onChange={(e) => set("vat_percent", e.target.value as unknown as number)} /></Field>
         <Field label="TRN"><input className="input" value={s.trn} onChange={(e) => set("trn", e.target.value)} /></Field>
+      </div>
+
+      <div className="card space-y-3 p-4">
+        <div className="font-semibold">Map pin at checkout</div>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" className="h-4 w-4 accent-ok" checked={s.require_pin} onChange={(e) => set("require_pin", e.target.checked)} />
+          Require customers to pin their location for delivery (otherwise optional)
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Map starts at (latitude)"><input className="input" type="number" step="any" value={s.map_center_lat} onChange={(e) => set("map_center_lat", e.target.value as unknown as number)} /></Field>
+          <Field label="Longitude"><input className="input" type="number" step="any" value={s.map_center_lng} onChange={(e) => set("map_center_lng", e.target.value as unknown as number)} /></Field>
+        </div>
+        <button type="button" className="text-sm text-brand" onClick={() =>
+          navigator.geolocation?.getCurrentPosition((p) => setS((cur) => cur && { ...cur, map_center_lat: +p.coords.latitude.toFixed(5), map_center_lng: +p.coords.longitude.toFixed(5) }))
+        }>
+          🎯 Use this device&apos;s location as the map start point
+        </button>
       </div>
 
       <div className="card space-y-3 p-4">
@@ -120,7 +154,7 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
         </div>
       </details>
 
-      <div className="flex items-center gap-3">
+      <div className="sticky bottom-0 z-10 -mx-1 flex items-center gap-3 border-t border-line bg-cream/95 px-1 py-3 backdrop-blur">
         <button className="btn">Save</button>
         <button type="button" className="btn-ghost" onClick={testPrint}>🖨 Test print</button>
         {msg && <span className="text-sm text-ok">{msg}</span>}
