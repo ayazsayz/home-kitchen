@@ -1,8 +1,9 @@
 import { money } from "./format";
+import { fmtWhen } from "./schedule";
 import type { Order, OrderStatus, Settings, WhatsAppTemplates } from "./types";
 
 /** Placeholders available in templates. */
-export const PLACEHOLDERS = ["{name}", "{order_no}", "{total}", "{payment_line}", "{ready_line}", "{link}", "{menu}", "{restaurant}"];
+export const PLACEHOLDERS = ["{name}", "{order_no}", "{total}", "{when}", "{payment_line}", "{ready_line}", "{link}", "{menu}", "{restaurant}"];
 
 /** Statuses a customer can be messaged about, in order. */
 export const NOTIFY_STATUSES: OrderStatus[] = ["accepted", "preparing", "ready", "out_for_delivery", "completed", "rejected"];
@@ -10,7 +11,7 @@ export const NOTIFY_STATUSES: OrderStatus[] = ["accepted", "preparing", "ready",
 type MessageStatus = Exclude<OrderStatus, "pending_payment">;
 export const DEFAULT_TEMPLATES: Record<MessageStatus, string> = {
   new: "Hi {name}, we received your order #{order_no} ({total}). Track it here: {link}",
-  accepted: "Hi {name}, your order #{order_no} from {restaurant} is confirmed ✅ Track it here: {link}",
+  accepted: "Hi {name}, your order #{order_no} from {restaurant} is confirmed ✅ ({when}). Track it here: {link}",
   preparing: "Hi {name}, we're cooking your order #{order_no} now 🍳",
   ready: "Hi {name}, your order #{order_no} is ready! {ready_line}",
   out_for_delivery: "Hi {name}, your order #{order_no} is on the way 🛵 {payment_line}",
@@ -25,7 +26,8 @@ export function templateFor(status: OrderStatus, custom: WhatsAppTemplates | und
 
 export function renderMessage(
   status: OrderStatus,
-  order: Pick<Order, "id" | "order_no" | "customer_name" | "total" | "order_type" | "payment_status">,
+  order: Pick<Order, "id" | "order_no" | "customer_name" | "total" | "order_type" | "payment_status"> &
+    Partial<Pick<Order, "scheduled_for">>,
   settings: Pick<Settings, "name" | "currency" | "whatsapp_templates">,
   origin: string,
 ) {
@@ -33,6 +35,9 @@ export function renderMessage(
     name: order.customer_name.split(" ")[0] || order.customer_name,
     order_no: String(order.order_no),
     total: money(order.total, settings.currency),
+    when: order.scheduled_for
+      ? `${order.order_type === "pickup" ? "pickup" : "delivery"} ${fmtWhen(order.scheduled_for)}`
+      : "as soon as possible",
     payment_line:
       order.payment_status === "paid"
         ? "Already paid ✓"

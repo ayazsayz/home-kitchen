@@ -7,12 +7,13 @@ Next.js 15 + Supabase. Customers order from their phone (cash on delivery or pic
 | URL | Who | What |
 |---|---|---|
 | `/` | Customers | Menu, search, cart |
-| `/checkout` | Customers | Delivery/pickup, name, mobile, address, COD |
+| `/checkout` | Customers | Delivery/pickup, ASAP or scheduled time, map pin, promo code, cash or card |
 | `/order/<id>` | Customers | Live order status (auto-refreshes) |
 | `/admin` | Staff | Live orders: accept → cooking → ready → delivered, reject, print, call/WhatsApp |
 | `/admin/menu` | Staff | Categories, dishes, photos, prices, sold-out toggle |
+| `/admin/promos` | Staff | Promo codes: % off, AED off, free delivery, limits, dates, usage |
 | `/admin/sales` | Staff | Revenue, order count, best sellers, by-day, CSV export |
-| `/admin/settings` | Staff | Open/closed, delivery areas & fees, card payments, WhatsApp messages, VAT/TRN, test print |
+| `/admin/settings` | Staff | Open/closed, opening hours & pre-orders, map pin, delivery areas & fees, card payments, WhatsApp messages, VAT/TRN, test print |
 
 ## Setup (≈15 min)
 
@@ -78,6 +79,26 @@ Refunds for rejected card orders are done in the provider's dashboard.
 
 To add another gateway (Telr, Network International…), implement `PaymentProvider` in `src/lib/payments/providers.ts`.
 
+## Opening hours & scheduled orders
+
+Settings → Opening hours & pre-orders:
+- Tick the days you open and set times (Dubai time). Use **split shift** for lunch + dinner, and **copy to all days** to save typing. A close time earlier than the open time means after midnight.
+- **Open and close automatically**: the shop opens/closes itself by these hours. The big Open/Closed switch still overrides everything (use it for holidays).
+- **Let customers schedule orders**: customers can pick a delivery/pickup time, even while you're closed (pre-orders). Settings: slot length, max orders per slot (stops the kitchen being overloaded), how far ahead the earliest slot is, and how many days ahead people can book.
+- Scheduled orders arrive (and print) immediately with a big **FOR <day, time>** banner. Once accepted, orders due more than 90 minutes away move to the **Upcoming** tab and come back to Active when they're close.
+
+## Promo codes
+
+Admin → Promos → New code. Choose % off (with optional cap), AED off, or free delivery, plus optional minimum order, total uses, uses per customer (by mobile number), start/end dates and "new customers only". The list shows how many times each code was used and how much discount it gave. Click a status pill to switch a code on/off.
+
+## Map pin
+
+Customers can pin their location at checkout ("Use my current location" or drag the map). The driver gets an **Open in Google Maps** link on the order card, and the printed receipt has a **QR code** that opens the location in Google Maps.
+
+- Works out of the box with OpenStreetMap (free, no key).
+- To use Google Maps in the picker, create a Maps JavaScript API key in Google Cloud (restrict it to your site's domain) and add `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in Vercel, then redeploy. Google requires a billing account but includes a monthly free allowance.
+- Settings → Map pin: make the pin required for delivery, and set where the map starts (use the button on the kitchen's own phone/PC).
+
 ## Ideas for later
 
-Fully automatic WhatsApp messages (WhatsApp Cloud API), loyalty / repeat-customer discounts, scheduled orders, and an Android phone + Bluetooth printer setup via RawBT.
+Fully automatic WhatsApp messages (WhatsApp Cloud API), loyalty / repeat-customer discounts, daily stock limits, and an Android phone + Bluetooth printer setup via RawBT.

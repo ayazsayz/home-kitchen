@@ -1,6 +1,8 @@
 "use client";
 import { money, timeShort, vatIncluded } from "./format";
 import { optionsText } from "./options";
+import { fmtWhen } from "./schedule";
+import { mapsLink } from "./maps";
 import type { Order, Settings } from "./types";
 
 const esc = (s: string) =>
@@ -22,6 +24,7 @@ function kitchenTicket(o: Order) {
   <div class="ticket">
     <div style="text-align:center" class="big">KITCHEN · #${o.order_no}</div>
     <div style="text-align:center">${o.order_type === "pickup" ? "PICKUP" : "DELIVERY"}${o.zone_name ? ` · ${esc(o.zone_name)}` : ""} · ${esc(timeShort(o.created_at))}</div>
+    ${o.scheduled_for ? `<div class="big" style="text-align:center;border:2px solid #000;margin-top:4px">FOR ${esc(fmtWhen(o.scheduled_for).toUpperCase())}</div>` : ""}
     <hr/>
     <table>${rows}</table>
     ${o.notes ? `<hr/><div class="big">NOTE: ${esc(o.notes)}</div>` : ""}
@@ -32,7 +35,7 @@ function kitchenTicket(o: Order) {
 }
 
 /** Customer receipt / delivery slip with prices and address. */
-function receipt(o: Order, s: Settings) {
+function receipt(o: Order, s: Settings, qr: string) {
   const c = s.currency;
   const rows = (o.order_items ?? [])
     .map(
@@ -52,12 +55,14 @@ function receipt(o: Order, s: Settings) {
     <hr/>
     <div>Order #${o.order_no} · ${esc(timeShort(o.created_at))}</div>
     <div>${o.order_type === "pickup" ? "Pickup" : "Delivery"}${o.zone_name ? ` · ${esc(o.zone_name)}` : ""}</div>
+    ${o.scheduled_for ? `<div><b>For ${esc(fmtWhen(o.scheduled_for))}</b></div>` : ""}
     <hr/>
     <table>${rows}</table>
     <hr/>
     <table>
       <tr><td>Subtotal</td><td style="text-align:right">${money(o.subtotal, c)}</td></tr>
       ${o.delivery_fee > 0 ? `<tr><td>Delivery</td><td style="text-align:right">${money(o.delivery_fee, c)}</td></tr>` : ""}
+      ${o.discount > 0 ? `<tr><td>Discount${o.promo_code ? ` (${esc(o.promo_code)})` : ""}</td><td style="text-align:right">-${money(o.discount, c)}</td></tr>` : ""}
       <tr><td class="big">TOTAL</td><td class="big" style="text-align:right">${money(o.total, c)}</td></tr>
       ${vat > 0 ? `<tr><td>Incl. VAT ${o.vat_percent}%</td><td style="text-align:right">${money(vat, c)}</td></tr>` : ""}
     </table>
@@ -69,6 +74,7 @@ function receipt(o: Order, s: Settings) {
     <div>${esc(o.customer_phone)}</div>
     ${o.address ? `<div>${esc(o.address)}</div>` : ""}
     ${o.notes ? `<div>Note: ${esc(o.notes)}</div>` : ""}
+    ${qr ? `<div style="text-align:center;margin-top:6px"><img src="${qr}" style="width:30mm;height:30mm" alt=""/><div>Scan for map</div></div>` : ""}
     <hr/>
     <div style="text-align:center">Thank you!</div>
   </div>`;
@@ -85,9 +91,9 @@ const CSS = `
   .cut { page-break-after: always; break-after: page; height: 8mm; }
 `;
 
-export function ticketHtml(o: Order, s: Settings, mode: PrintMode) {
+export function ticketHtml(o: Order, s: Settings, mode: PrintMode, qr = "") {
   const parts =
-    mode === "kitchen" ? [kitchenTicket(o)] : mode === "receipt" ? [receipt(o, s)] : [kitchenTicket(o), receipt(o, s)];
+    mode === "kitchen" ? [kitchenTicket(o)] : mode === "receipt" ? [receipt(o, s, qr)] : [kitchenTicket(o), receipt(o, s, qr)];
   return `<!doctype html><html><head><meta charset="utf-8"><title>Order ${o.order_no}</title><style>${CSS}</style></head>
   <body>${parts.join('<div class="cut"></div>')}</body></html>`;
 }
@@ -96,11 +102,20 @@ export function ticketHtml(o: Order, s: Settings, mode: PrintMode) {
  * Prints via a hidden iframe. With Chrome started using --kiosk-printing,
  * this goes straight to the default (thermal) printer with no dialog.
  */
-export function printOrder(o: Order, s: Settings, mode: PrintMode): Promise<void> {
+export async function printOrder(o: Order, s: Settings, mode: PrintMode): Promise<void> {
+  // QR code of the customer's map pin, so the driver can scan it from the receipt.
+  let qr = "";
+  const link = mapsLink(o);
+  if (link && mode !== "kitchen") {
+    try {
+      const QR = (await import("qrcode")).default;
+      qr = await QR.toDataURL(link, { margin: 0, width: 240, errorCorrectionLevel: "M" });
+    } catch {}
+  }
   return new Promise((resolve) => {
     const frame = document.createElement("iframe");
     frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
-    frame.srcdoc = ticketHtml(o, s, mode);
+    frame.srcdoc = ticketHtml(o, s, mode, qr);
     frame.onload = () => {
       const w = frame.contentWindow!;
       const done = () => {

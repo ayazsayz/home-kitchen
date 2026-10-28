@@ -4,14 +4,18 @@ import { useMemo, useState } from "react";
 import { useCart } from "@/lib/cart";
 import { money } from "@/lib/format";
 import type { Category, MenuItem, Settings } from "@/lib/types";
+import type { Availability } from "@/lib/data";
+import { fmtWhen } from "@/lib/schedule";
 import OptionsSheet from "./OptionsSheet";
 
 export default function MenuClient({
   settings,
+  availability,
   categories,
   items,
 }: {
   settings: Settings;
+  availability: Availability;
   categories: Category[];
   items: MenuItem[];
 }) {
@@ -40,9 +44,19 @@ export default function MenuClient({
         <p className="mt-1 text-muted">
           Home-cooked, made to order · {settings.card_enabled ? "Cash or card" : "Cash on delivery"}
         </p>
-        {!settings.is_open && (
+        {!availability.asap && (
           <div className="mt-4 rounded-xl border border-brand/30 bg-brand/10 px-4 py-3 text-brand-dark">
-            {settings.closed_message}
+            {availability.canOrder ? (
+              <>
+                We&apos;re closed right now{availability.nextOpen && <> · opens {fmtWhen(availability.nextOpen)}</>}.{" "}
+                <b>You can pre-order for later.</b>
+              </>
+            ) : (
+              <>
+                {settings.closed_message}
+                {availability.nextOpen && <> Opens {fmtWhen(availability.nextOpen)}.</>}
+              </>
+            )}
           </div>
         )}
         <input className="input mt-4" placeholder="Search the menu" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -89,7 +103,7 @@ export default function MenuClient({
                       ) : (
                         <button
                           className="btn px-3 py-1.5"
-                          disabled={!settings.is_open}
+                          disabled={!availability.canOrder}
                           onClick={() =>
                             withOpts
                               ? setPicking(i)
@@ -122,7 +136,7 @@ export default function MenuClient({
         />
       )}
 
-      {cart.ready && cart.count > 0 && settings.is_open && (
+      {cart.ready && cart.count > 0 && availability.canOrder && (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-paper/95 p-3 backdrop-blur">
           <Link href="/checkout" className="btn mx-auto flex w-full max-w-2xl justify-between py-3">
             <span>

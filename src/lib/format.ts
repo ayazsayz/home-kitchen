@@ -33,7 +33,7 @@ export function normalisePhone(raw: string) {
 }
 
 /** Postgres numerics arrive as strings — convert the money fields to numbers. */
-const NUMERIC = ["price", "fee", "delivery_fee", "min_order", "vat_percent", "subtotal", "total", "unit_price", "line_total"];
+const NUMERIC = ["price", "fee", "discount", "value", "max_discount", "delivery_fee", "min_order", "vat_percent", "subtotal", "total", "unit_price", "line_total"];
 export function normalise<T>(row: T): T {
   const out = { ...(row as Record<string, unknown>) };
   for (const k of NUMERIC) if (k in out && out[k] != null) out[k] = Number(out[k]);

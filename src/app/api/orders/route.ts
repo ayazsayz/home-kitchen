@@ -3,6 +3,10 @@ import { supabaseAdmin } from "@/lib/supabase-server";
 import { normalisePhone, round2 } from "@/lib/format";
 import { resolveOptions } from "@/lib/options";
 import { cardAvailable, startPayment } from "@/lib/payments/service";
+import { checkPromo } from "@/lib/promo-server";
+import { getAvailability } from "@/lib/data";
+import { withSettingDefaults } from "@/lib/settings";
+import { slotKey } from "@/lib/schedule";
 import type { OptionGroup } from "@/lib/types";
 
 type Body = {
@@ -13,6 +17,9 @@ type Body = {
   zone_id?: string;
   notes?: string;
   payment_method?: "cod" | "card";
+  scheduled_for?: string | null;
+  promo_code?: string;
+  location?: { lat: number; lng: number } | null;
   items?: { id: string; qty: number; choiceIds?: string[] }[];
 };
 
@@ -42,9 +49,40 @@ export async function POST(req: Request) {
 
   const db = supabaseAdmin();
 
-  const { data: settings, error: sErr } = await db.from("settings").select("*").eq("id", 1).single();
-  if (sErr || !settings) return bad("Restaurant not configured", 500);
-  if (!settings.is_open) return bad(settings.closed_message || "We are closed right now");
+  const { data: settingsRow, error: sErr } = await db.from("settings").select("*").eq("id", 1).single();
+  if (sErr || !settingsRow) return bad("Restaurant not configured", 500);
+  const settings = withSettingDefaults(settingsRow);
+
+  // ----- when: ASAP or a scheduled slot -----
+  const avail = await getAvailability(settings);
+  let scheduledFor: string | null = null;
+  if (body.scheduled_for) {
+    const key = (() => {
+      try {
+        return slotKey(body.scheduled_for);
+      } catch {
+        return "";
+      }
+    })();
+    const slot = avail.slots.find((x) => x.start === key);
+    if (!slot) return bad("That time is no longer available. Please pick another time.", 409);
+    if (slot.full) return bad("That time just filled up. Please pick another time.", 409);
+    scheduledFor = slot.start;
+  } else if (!avail.asap) {
+    if (avail.slots.some((x) => !x.full)) return bad("We're not taking orders for right now. Please choose a time.", 409);
+    return bad(settings.closed_message || "We are closed right now");
+  }
+
+  // ----- map pin -----
+  const loc = body.location;
+  const hasPin =
+    type === "delivery" &&
+    loc != null &&
+    Number.isFinite(loc.lat) &&
+    Number.isFinite(loc.lng) &&
+    Math.abs(loc.lat) <= 90 &&
+    Math.abs(loc.lng) <= 180;
+  if (type === "delivery" && settings.require_pin && !hasPin) return bad("Please pin your location on the map");
 
   // ----- delivery zone -----
   let fee = 0;
@@ -54,7 +92,7 @@ export async function POST(req: Request) {
     const { data: zones } = await db.from("delivery_zones").select("*").eq("active", true);
     if (zones && zones.length) {
       const zone = zones.find((z) => z.id === body.zone_id);
-      if (!zone) return bad("Please choose your delivery area");
+      if (!zone) return NextResponse.json({ error: "Please choose your delivery area", code: "zone_required" }, { status: 400 });
       fee = Number(zone.fee);
       zoneName = zone.name;
       if (zone.min_order != null) minOrder = Number(zone.min_order);
@@ -98,9 +136,21 @@ export async function POST(req: Request) {
     return bad(`Minimum order${zoneName ? ` for ${zoneName}` : ""} is ${settings.currency} ${minOrder.toFixed(2)}`);
   }
 
+  // ----- promo code -----
+  let discount = 0;
+  let promoCode: string | null = null;
+  if (body.promo_code && String(body.promo_code).trim()) {
+    const promo = await checkPromo(String(body.promo_code), { subtotal, deliveryFee: fee, isDelivery: type === "delivery", phone }, settings.currency);
+    if (!promo.ok) return NextResponse.json({ error: promo.error, code: "promo_invalid" }, { status: 400 });
+    discount = Math.min(promo.discount, round2(subtotal + fee));
+    promoCode = promo.code ?? null;
+  }
+  const total = round2(subtotal + fee - discount);
+
   // ----- payment method -----
   const card = body.payment_method === "card";
   if (card && !cardAvailable(settings)) return bad("Card payment is not available right now. Please choose cash.");
+  if (card && total <= 0) return bad("Nothing to pay by card. Please choose cash.");
 
   const { data: order, error: oErr } = await db
     .from("orders")
@@ -113,7 +163,12 @@ export async function POST(req: Request) {
       notes,
       subtotal,
       delivery_fee: fee,
-      total: round2(subtotal + fee),
+      total,
+      discount,
+      promo_code: promoCode,
+      scheduled_for: scheduledFor,
+      location_lat: hasPin ? loc!.lat : null,
+      location_lng: hasPin ? loc!.lng : null,
       vat_percent: Number(settings.vat_percent),
       payment_method: card ? "card" : "cod",
       payment_status: card ? "pending" : "unpaid",
