@@ -1,12 +1,15 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { cartKey } from "./options";
 import type { CartLine } from "./types";
 
-const KEY = "hk_cart_v1";
+// v2: lines carry options. Old v1 carts are dropped (they can't be matched to options).
+const KEY = "hk_cart_v2";
 
 function read(): CartLine[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]");
+    const v = JSON.parse(localStorage.getItem(KEY) || "[]");
+    return Array.isArray(v) ? v : [];
   } catch {
     return [];
   }
@@ -23,6 +26,9 @@ export function useCart() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    try {
+      localStorage.removeItem("hk_cart_v1");
+    } catch {}
     const sync = () => setLines(read());
     sync();
     setReady(true);
@@ -34,25 +40,29 @@ export function useCart() {
     };
   }, []);
 
-  const add = useCallback((item: Omit<CartLine, "qty">) => {
+  const add = useCallback((item: Omit<CartLine, "qty" | "key">, qty = 1) => {
+    const key = cartKey(item.id, item.choiceIds);
     const cur = read();
-    const hit = cur.find((l) => l.id === item.id);
-    if (hit) hit.qty += 1;
-    else cur.push({ ...item, qty: 1 });
+    const hit = cur.find((l) => l.key === key);
+    if (hit) hit.qty += qty;
+    else cur.push({ ...item, key, qty });
     write(cur);
   }, []);
 
-  const setQty = useCallback((id: string, qty: number) => {
-    const cur = read()
-      .map((l) => (l.id === id ? { ...l, qty } : l))
-      .filter((l) => l.qty > 0);
-    write(cur);
+  const setQty = useCallback((key: string, qty: number) => {
+    write(
+      read()
+        .map((l) => (l.key === key ? { ...l, qty } : l))
+        .filter((l) => l.qty > 0),
+    );
   }, []);
 
   const clear = useCallback(() => write([]), []);
 
   const count = lines.reduce((s, l) => s + l.qty, 0);
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
+  /** total quantity of a dish across all its option variants */
+  const qtyOfItem = useCallback((id: string) => lines.filter((l) => l.id === id).reduce((s, l) => s + l.qty, 0), [lines]);
 
-  return { lines, ready, add, setQty, clear, count, subtotal };
+  return { lines, ready, add, setQty, clear, count, subtotal, qtyOfItem };
 }

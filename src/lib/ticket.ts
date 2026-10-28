@@ -1,5 +1,6 @@
 "use client";
 import { money, timeShort, vatIncluded } from "./format";
+import { optionsText } from "./options";
 import type { Order, Settings } from "./types";
 
 const esc = (s: string) =>
@@ -10,15 +11,21 @@ export type PrintMode = "kitchen" | "receipt" | "both";
 /** Kitchen ticket: large quantities, no prices. */
 function kitchenTicket(o: Order) {
   const rows = (o.order_items ?? [])
-    .map((i) => `<tr><td class="big" style="width:30px">${i.qty}×</td><td class="big">${esc(i.name)}</td></tr>`)
+    .map(
+      (i) =>
+        `<tr><td class="big" style="width:30px">${i.qty}×</td><td class="big">${esc(i.name)}${
+          i.options?.length ? `<div style="font-size:14px;font-weight:700">+ ${esc(optionsText(i.options))}</div>` : ""
+        }</td></tr>`,
+    )
     .join("");
   return `
   <div class="ticket">
     <div style="text-align:center" class="big">KITCHEN · #${o.order_no}</div>
-    <div style="text-align:center">${o.order_type === "pickup" ? "PICKUP" : "DELIVERY"} · ${esc(timeShort(o.created_at))}</div>
+    <div style="text-align:center">${o.order_type === "pickup" ? "PICKUP" : "DELIVERY"}${o.zone_name ? ` · ${esc(o.zone_name)}` : ""} · ${esc(timeShort(o.created_at))}</div>
     <hr/>
     <table>${rows}</table>
     ${o.notes ? `<hr/><div class="big">NOTE: ${esc(o.notes)}</div>` : ""}
+    <div>${o.payment_status === "paid" ? "PAID" : "CASH"}</div>
     <hr/>
     <div>${esc(o.customer_name)}</div>
   </div>`;
@@ -30,7 +37,9 @@ function receipt(o: Order, s: Settings) {
   const rows = (o.order_items ?? [])
     .map(
       (i) =>
-        `<tr><td>${i.qty} × ${esc(i.name)}</td><td style="text-align:right;white-space:nowrap">${money(i.line_total, c)}</td></tr>`,
+        `<tr><td>${i.qty} × ${esc(i.name)}${
+          i.options?.length ? `<div style="padding-left:12px">${esc(optionsText(i.options))}</div>` : ""
+        }</td><td style="text-align:right;white-space:nowrap">${money(i.line_total, c)}</td></tr>`,
     )
     .join("");
   const vat = vatIncluded(o.total, o.vat_percent);
@@ -42,7 +51,7 @@ function receipt(o: Order, s: Settings) {
     ${o.vat_percent > 0 && s.trn ? `<div style="text-align:center">TRN ${esc(s.trn)}</div><div style="text-align:center">TAX INVOICE</div>` : ""}
     <hr/>
     <div>Order #${o.order_no} · ${esc(timeShort(o.created_at))}</div>
-    <div>${o.order_type === "pickup" ? "Pickup" : "Delivery"} · Cash</div>
+    <div>${o.order_type === "pickup" ? "Pickup" : "Delivery"}${o.zone_name ? ` · ${esc(o.zone_name)}` : ""}</div>
     <hr/>
     <table>${rows}</table>
     <hr/>
@@ -52,6 +61,9 @@ function receipt(o: Order, s: Settings) {
       <tr><td class="big">TOTAL</td><td class="big" style="text-align:right">${money(o.total, c)}</td></tr>
       ${vat > 0 ? `<tr><td>Incl. VAT ${o.vat_percent}%</td><td style="text-align:right">${money(vat, c)}</td></tr>` : ""}
     </table>
+    <div class="big" style="text-align:center;margin-top:4px">${
+      o.payment_status === "paid" ? "PAID BY CARD" : `CASH · COLLECT ${money(o.total, c)}`
+    }</div>
     <hr/>
     <div><b>${esc(o.customer_name)}</b></div>
     <div>${esc(o.customer_phone)}</div>

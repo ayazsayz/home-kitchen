@@ -1,19 +1,24 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { normalisePhone, round2 } from "@/lib/format";
+import { resolveOptions } from "@/lib/options";
+import { cardAvailable, startPayment } from "@/lib/payments/service";
+import type { OptionGroup } from "@/lib/types";
 
 type Body = {
   order_type?: "delivery" | "pickup";
   customer_name?: string;
   customer_phone?: string;
   address?: string;
+  zone_id?: string;
   notes?: string;
-  items?: { id: string; qty: number }[];
+  payment_method?: "cod" | "card";
+  items?: { id: string; qty: number; choiceIds?: string[] }[];
 };
 
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
 
-/** Creates an order. Prices are always taken from the database, never from the browser. */
+/** Creates an order. Prices, options and fees always come from the database, never from the browser. */
 export async function POST(req: Request) {
   let body: Body;
   try {
@@ -33,7 +38,7 @@ export async function POST(req: Request) {
   if (!/^\+?\d{7,15}$/.test(phone)) return bad("Please enter a valid mobile number");
   if (type === "delivery" && !address) return bad("Please enter a delivery address");
   if (!lines.length) return bad("Your cart is empty");
-  if (lines.some((l) => l.qty < 1 || l.qty > 50)) return bad("Invalid quantity");
+  if (lines.length > 50 || lines.some((l) => l.qty < 1 || l.qty > 50)) return bad("Invalid quantity");
 
   const db = supabaseAdmin();
 
@@ -41,10 +46,28 @@ export async function POST(req: Request) {
   if (sErr || !settings) return bad("Restaurant not configured", 500);
   if (!settings.is_open) return bad(settings.closed_message || "We are closed right now");
 
+  // ----- delivery zone -----
+  let fee = 0;
+  let zoneName = "";
+  let minOrder = Number(settings.min_order) || 0;
+  if (type === "delivery") {
+    const { data: zones } = await db.from("delivery_zones").select("*").eq("active", true);
+    if (zones && zones.length) {
+      const zone = zones.find((z) => z.id === body.zone_id);
+      if (!zone) return bad("Please choose your delivery area");
+      fee = Number(zone.fee);
+      zoneName = zone.name;
+      if (zone.min_order != null) minOrder = Number(zone.min_order);
+    } else {
+      fee = Number(settings.delivery_fee) || 0;
+    }
+  }
+
+  // ----- items + options -----
   const ids = [...new Set(lines.map((l) => l.id))];
   const { data: menu, error: mErr } = await db
     .from("menu_items")
-    .select("id, name, price, available")
+    .select("id, name, price, available, option_groups")
     .in("id", ids);
   if (mErr) return bad("Could not load menu", 500);
 
@@ -54,14 +77,30 @@ export async function POST(req: Request) {
     const m = byId.get(l.id);
     if (!m) return bad("An item in your cart no longer exists. Please refresh the menu.");
     if (!m.available) return bad(`${m.name} is sold out. Please remove it from your cart.`);
-    const unit = Number(m.price);
-    orderItems.push({ menu_item_id: m.id, name: m.name, unit_price: unit, qty: l.qty, line_total: round2(unit * l.qty) });
+    const opts = resolveOptions(
+      { name: m.name, option_groups: (m.option_groups ?? []) as OptionGroup[] },
+      Array.isArray(l.choiceIds) ? l.choiceIds.filter((x) => typeof x === "string") : [],
+    );
+    if (!opts.ok) return bad(opts.error);
+    const unit = round2(Number(m.price) + opts.extra);
+    orderItems.push({
+      menu_item_id: m.id,
+      name: m.name,
+      unit_price: unit,
+      qty: l.qty,
+      line_total: round2(unit * l.qty),
+      options: opts.picked,
+    });
   }
 
   const subtotal = round2(orderItems.reduce((s, i) => s + i.line_total, 0));
-  const minOrder = Number(settings.min_order);
-  if (minOrder > 0 && subtotal < minOrder) return bad(`Minimum order is ${settings.currency} ${minOrder.toFixed(2)}`);
-  const fee = type === "delivery" ? Number(settings.delivery_fee) : 0;
+  if (minOrder > 0 && subtotal < minOrder) {
+    return bad(`Minimum order${zoneName ? ` for ${zoneName}` : ""} is ${settings.currency} ${minOrder.toFixed(2)}`);
+  }
+
+  // ----- payment method -----
+  const card = body.payment_method === "card";
+  if (card && !cardAvailable(settings)) return bad("Card payment is not available right now. Please choose cash.");
 
   const { data: order, error: oErr } = await db
     .from("orders")
@@ -70,23 +109,41 @@ export async function POST(req: Request) {
       customer_name: name,
       customer_phone: phone,
       address: type === "delivery" ? address : "",
+      zone_name: zoneName,
       notes,
       subtotal,
       delivery_fee: fee,
       total: round2(subtotal + fee),
       vat_percent: Number(settings.vat_percent),
-      payment_method: "cod",
+      payment_method: card ? "card" : "cod",
+      payment_status: card ? "pending" : "unpaid",
+      status: card ? "pending_payment" : "new",
     })
     .select("id, order_no")
     .single();
-  if (oErr || !order) return bad("Could not place order", 500);
+  if (oErr || !order) {
+    console.error(oErr);
+    return bad("Could not place order", 500);
+  }
 
   const { error: iErr } = await db
     .from("order_items")
     .insert(orderItems.map((i) => ({ ...i, order_id: order.id })));
   if (iErr) {
+    console.error(iErr);
     await db.from("orders").delete().eq("id", order.id);
     return bad("Could not place order", 500);
+  }
+
+  if (card) {
+    try {
+      const redirectUrl = await startPayment(order.id, new URL(req.url).origin);
+      return NextResponse.json({ id: order.id, order_no: order.order_no, redirectUrl });
+    } catch (e) {
+      console.error(e);
+      // Keep the order; the customer can retry or switch to cash from the order page.
+      return NextResponse.json({ id: order.id, order_no: order.order_no, paymentError: true });
+    }
   }
 
   return NextResponse.json({ id: order.id, order_no: order.order_no });

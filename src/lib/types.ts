@@ -1,3 +1,19 @@
+export type OrderStatus =
+  | "pending_payment"
+  | "new"
+  | "accepted"
+  | "preparing"
+  | "ready"
+  | "out_for_delivery"
+  | "completed"
+  | "rejected";
+
+export type PaymentStatus = "unpaid" | "pending" | "paid" | "failed";
+export type PaymentMethod = "cod" | "card";
+
+/** WhatsApp message per status. Placeholders: {name} {order_no} {total} {link} {restaurant} */
+export type WhatsAppTemplates = Partial<Record<OrderStatus, string>>;
+
 export type Settings = {
   id: number;
   name: string;
@@ -10,9 +26,30 @@ export type Settings = {
   trn: string;
   is_open: boolean;
   closed_message: string;
+  whatsapp_templates: WhatsAppTemplates;
+  card_enabled: boolean;
+};
+
+export type DeliveryZone = {
+  id: string;
+  name: string;
+  fee: number;
+  min_order: number | null;
+  active: boolean;
+  sort: number;
 };
 
 export type Category = { id: string; name: string; sort: number };
+
+export type OptionChoice = { id: string; name: string; price: number; available?: boolean };
+export type OptionGroup = {
+  id: string;
+  name: string;
+  required: boolean;
+  /** 1 = pick one; >1 = pick up to N */
+  max: number;
+  choices: OptionChoice[];
+};
 
 export type MenuItem = {
   id: string;
@@ -23,16 +60,11 @@ export type MenuItem = {
   image_url: string;
   available: boolean;
   sort: number;
+  option_groups: OptionGroup[];
 };
 
-export type OrderStatus =
-  | "new"
-  | "accepted"
-  | "preparing"
-  | "ready"
-  | "out_for_delivery"
-  | "completed"
-  | "rejected";
+/** What the customer picked, as stored on the order line. */
+export type PickedOption = { group: string; name: string; price: number };
 
 export type OrderItem = {
   id: string;
@@ -42,6 +74,7 @@ export type OrderItem = {
   unit_price: number;
   qty: number;
   line_total: number;
+  options: PickedOption[];
 };
 
 export type Order = {
@@ -52,20 +85,35 @@ export type Order = {
   customer_name: string;
   customer_phone: string;
   address: string;
+  zone_name: string;
   notes: string;
   subtotal: number;
   delivery_fee: number;
   total: number;
   vat_percent: number;
-  payment_method: string;
+  payment_method: PaymentMethod;
+  payment_status: PaymentStatus;
   printed_at: string | null;
   created_at: string;
   order_items?: OrderItem[];
 };
 
-export type CartLine = { id: string; name: string; price: number; qty: number };
+/** A cart line. `key` = item id + chosen option ids, so the same dish with different options is a separate line. */
+export type CartLine = {
+  key: string;
+  id: string;
+  name: string;
+  /** unit price including options */
+  price: number;
+  qty: number;
+  /** selected choice ids */
+  choiceIds: string[];
+  /** human-readable, e.g. ["Large", "Extra cheese"] */
+  optionLabels: string[];
+};
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
+  pending_payment: "Awaiting payment",
   new: "New",
   accepted: "Accepted",
   preparing: "Preparing",
