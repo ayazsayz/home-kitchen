@@ -1,31 +1,14 @@
 import type { Settings, TimeRange, WeeklyHours } from "./types";
 
+import { DEFAULT_TZ, addDays, zoned, zonedInstant } from "./tz";
+
 /**
- * Opening hours and time slots. All times are Dubai time (UTC+4, no daylight saving),
- * so plain offset arithmetic is exact and works the same on the server and in the browser.
+ * Opening hours and time slots, in the shop's time zone (settings.timezone).
+ * Works the same on the server and in the browser, including zones with daylight saving.
  */
-const OFFSET_MIN = 4 * 60;
 const DAY = 24 * 60;
-const TZ = "Asia/Dubai";
-
-type Clock = { ymd: string; dow: number; minutes: number };
-
-/** Dubai calendar day, weekday and minutes-past-midnight for an instant. */
-export function dubaiClock(d: Date): Clock {
-  const local = new Date(d.getTime() + OFFSET_MIN * 60000);
-  return {
-    ymd: local.toISOString().slice(0, 10),
-    dow: local.getUTCDay(),
-    minutes: local.getUTCHours() * 60 + local.getUTCMinutes(),
-  };
-}
-
-/** The instant for a Dubai calendar day + minutes past its midnight (minutes may exceed 1440). */
-export function dubaiInstant(ymd: string, minutes: number): Date {
-  return new Date(Date.parse(`${ymd}T00:00:00Z`) + (minutes - OFFSET_MIN) * 60000);
-}
-
-const addDays = (ymd: string, n: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + n * DAY * 60000).toISOString().slice(0, 10);
+type TzSettings = { timezone?: string };
+const tzOf = (s: TzSettings | undefined) => s?.timezone || DEFAULT_TZ;
 const dowOf = (ymd: string) => new Date(`${ymd}T00:00:00Z`).getUTCDay();
 
 export function toMinutes(hhmm: string): number | null {
@@ -55,31 +38,31 @@ export function hasHours(hours: WeeklyHours | undefined) {
 }
 
 /** Absolute open intervals overlapping [from, from + days]. */
-function intervals(hours: WeeklyHours, from: Date, days: number): [Date, Date][] {
-  const start = dubaiClock(from).ymd;
+function intervals(hours: WeeklyHours, from: Date, days: number, tz: string): [Date, Date][] {
+  const start = zoned(from, tz).ymd;
   const out: [Date, Date][] = [];
   for (let i = -1; i <= days; i++) {
     const ymd = addDays(start, i);
-    for (const [o, c] of dayRanges(hours, dowOf(ymd))) out.push([dubaiInstant(ymd, o), dubaiInstant(ymd, c)]);
+    for (const [o, c] of dayRanges(hours, dowOf(ymd))) out.push([zonedInstant(ymd, o, tz), zonedInstant(ymd, c, tz)]);
   }
   return out.sort((a, b) => +a[0] - +b[0]);
 }
 
-export function withinHours(hours: WeeklyHours, at: Date) {
-  return intervals(hours, at, 0).some(([a, b]) => at >= a && at < b);
+export function withinHours(hours: WeeklyHours, at: Date, tz = DEFAULT_TZ) {
+  return intervals(hours, at, 0, tz).some(([a, b]) => at >= a && at < b);
 }
 
 /** Open right now for immediate (ASAP) orders? `is_open` is the master switch. */
-export function isOpenNow(s: Pick<Settings, "is_open" | "auto_hours" | "hours">, now = new Date()) {
+export function isOpenNow(s: Pick<Settings, "is_open" | "auto_hours" | "hours"> & TzSettings, now = new Date()) {
   if (!s.is_open) return false;
   if (!s.auto_hours || !hasHours(s.hours)) return true;
-  return withinHours(s.hours, now);
+  return withinHours(s.hours, now, tzOf(s));
 }
 
 /** Next time the kitchen opens (from the weekly hours), or null. */
-export function nextOpening(s: Pick<Settings, "hours">, now = new Date()): Date | null {
+export function nextOpening(s: Pick<Settings, "hours"> & TzSettings, now = new Date()): Date | null {
   if (!hasHours(s.hours)) return null;
-  const next = intervals(s.hours, now, 7).find(([a, b]) => a > now || (now >= a && now < b));
+  const next = intervals(s.hours, now, 7, tzOf(s)).find(([a, b]) => a > now || (now >= a && now < b));
   if (!next) return null;
   return next[0] > now ? next[0] : now;
 }
@@ -91,43 +74,46 @@ export type Slot = {
   full: boolean;
 };
 
-export const fmtTime = (d: Date) => d.toLocaleTimeString("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" });
-export function fmtDay(d: Date, now = new Date()) {
-  const a = dubaiClock(d).ymd;
-  const today = dubaiClock(now).ymd;
+export const fmtTime = (d: Date, tz = DEFAULT_TZ) => d.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+export function fmtDay(d: Date, tz = DEFAULT_TZ, now = new Date()) {
+  const a = zoned(d, tz).ymd;
+  const today = zoned(now, tz).ymd;
   if (a === today) return "Today";
   if (a === addDays(today, 1)) return "Tomorrow";
-  return d.toLocaleDateString("en-GB", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" });
+  return d.toLocaleDateString("en-GB", { timeZone: tz, weekday: "short", day: "numeric", month: "short" });
 }
-export const fmtWhen = (iso: string, now = new Date()) => `${fmtDay(new Date(iso), now)}, ${fmtTime(new Date(iso))}`;
+/** "Today, 7:30 PM" in the shop's time zone. */
+export const fmtWhen = (iso: string, tz = DEFAULT_TZ, now = new Date()) =>
+  `${fmtDay(new Date(iso), tz, now)}, ${fmtTime(new Date(iso), tz)}`;
 
 /**
- * Bookable delivery/pickup slots. A slot is offered if it starts at least `lead_minutes`
+ * Bookable delivery/pickup slots (labels in the shop's time zone). A slot is offered if it starts at least `lead_minutes`
  * from now, inside opening hours, within `days_ahead` days. `taken` maps slot ISO → orders already booked.
  */
 export function buildSlots(
-  s: Pick<Settings, "is_open" | "hours" | "allow_scheduled" | "slot_minutes" | "slot_capacity" | "lead_minutes" | "days_ahead">,
+  s: Pick<Settings, "is_open" | "hours" | "allow_scheduled" | "slot_minutes" | "slot_capacity" | "lead_minutes" | "days_ahead"> & TzSettings,
   taken: Record<string, number> = {},
   now = new Date(),
 ): Slot[] {
   if (!s.is_open || !s.allow_scheduled || !hasHours(s.hours)) return [];
+  const tz = tzOf(s);
   const step = Math.max(10, s.slot_minutes || 30) * 60000;
   const earliest = now.getTime() + Math.max(0, s.lead_minutes) * 60000;
-  const lastDay = addDays(dubaiClock(now).ymd, Math.max(0, s.days_ahead));
+  const lastDay = addDays(zoned(now, tz).ymd, Math.max(0, s.days_ahead));
   const seen = new Set<string>();
   const slots: Slot[] = [];
-  for (const [a, b] of intervals(s.hours, now, s.days_ahead + 1)) {
+  for (const [a, b] of intervals(s.hours, now, s.days_ahead + 1, tz)) {
     for (let t = a.getTime(); t < b.getTime(); t += step) {
       if (t < earliest) continue;
       const d = new Date(t);
-      if (dubaiClock(d).ymd > lastDay) continue;
+      if (zoned(d, tz).ymd > lastDay) continue;
       const iso = d.toISOString();
       if (seen.has(iso)) continue;
       seen.add(iso);
       slots.push({
         start: iso,
-        day: fmtDay(d, now),
-        time: fmtTime(d),
+        day: fmtDay(d, tz, now),
+        time: fmtTime(d, tz),
         full: s.slot_capacity > 0 && (taken[iso] ?? 0) >= s.slot_capacity,
       });
     }

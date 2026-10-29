@@ -63,25 +63,8 @@ export function vatIncluded(total: number, vatPercent: number, decimals = 2) {
   return roundMoney(total - total / (1 + vatPercent / 100), decimals);
 }
 
-export function timeShort(iso: string) {
-  return new Date(iso).toLocaleString("en-GB", {
-    timeZone: "Asia/Dubai",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-/** Normalise UAE mobile numbers to +9715XXXXXXXX where possible. */
-export function normalisePhone(raw: string) {
-  const d = raw.replace(/[^\d+]/g, "");
-  if (/^05\d{8}$/.test(d)) return "+971" + d.slice(1);
-  if (/^5\d{8}$/.test(d)) return "+971" + d;
-  if (/^9715\d{8}$/.test(d)) return "+" + d;
-  if (/^00971/.test(d)) return "+" + d.slice(2);
-  return d;
-}
+export { timeShort } from "./tz";
+export { normalisePhone } from "./region";
 
 /** Postgres numerics arrive as strings — convert the money fields to numbers. */
 const NUMERIC = ["amount", "price", "fee", "discount", "value", "max_discount", "delivery_fee", "min_order", "vat_percent", "subtotal", "total", "unit_price", "line_total"];

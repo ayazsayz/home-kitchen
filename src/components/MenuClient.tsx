@@ -49,13 +49,13 @@ export default function MenuClient({
           <div className="mt-4 rounded-xl border border-brand/30 bg-brand/10 px-4 py-3 text-brand-dark">
             {availability.canOrder ? (
               <>
-                We&apos;re closed right now{availability.nextOpen && <> · opens {fmtWhen(availability.nextOpen)}</>}.{" "}
+                We&apos;re closed right now{availability.nextOpen && <> · opens {fmtWhen(availability.nextOpen, settings.timezone)}</>}.{" "}
                 <b>You can pre-order for later.</b>
               </>
             ) : (
               <>
                 {settings.closed_message}
-                {availability.nextOpen && <> Opens {fmtWhen(availability.nextOpen)}.</>}
+                {availability.nextOpen && <> Opens {fmtWhen(availability.nextOpen, settings.timezone)}.</>}
               </>
             )}
           </div>

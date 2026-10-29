@@ -14,7 +14,7 @@ Next.js 15 + Supabase. Customers order from their phone (cash on delivery or pic
 | `/admin/promos` | Staff | Promo codes: % off, AED off, free delivery, limits, dates, usage |
 | `/admin/sales` | Staff | Revenue, order count, best sellers, by-day, CSV export |
 | `/admin/expenses` | Staff | Record shopping & running costs, receipt photos, profit & cash-in-hand report, CSV |
-| `/admin/settings` | Staff | Currency, open/closed, opening hours & pre-orders, map pin, delivery areas & fees, card payments, WhatsApp messages, VAT/TRN, test print |
+| `/admin/settings` | Staff | Country & time zone, currency, open/closed, opening hours & pre-orders, map pin, delivery areas & fees, card payments, WhatsApp messages, VAT/TRN, test print |
 
 ## Setup (≈15 min)
 
@@ -47,7 +47,7 @@ Printing options per device: kitchen ticket (big quantities, no prices), custome
 - Prices are always recalculated on the server from the database, so customers can't tamper with totals.
 - The service role key is used only in server code (`src/lib/supabase-server.ts`). Never put it in a `NEXT_PUBLIC_` variable.
 - VAT: prices are treated as VAT-inclusive. Leave VAT at 0 unless the business is VAT-registered; with VAT > 0 and a TRN, the receipt prints as a tax invoice.
-- Times are shown in Dubai time. Currency is set in Settings.
+- Time zone, phone format and currency are set in Settings (defaults: UAE / Dubai / AED).
 
 ## Upgrading an existing install
 
@@ -83,7 +83,7 @@ To add another gateway (Telr, Network International…), implement `PaymentProvi
 ## Opening hours & scheduled orders
 
 Settings → Opening hours & pre-orders:
-- Tick the days you open and set times (Dubai time). Use **split shift** for lunch + dinner, and **copy to all days** to save typing. A close time earlier than the open time means after midnight.
+- Tick the days you open and set times (in the shop's time zone). Use **split shift** for lunch + dinner, and **copy to all days** to save typing. A close time earlier than the open time means after midnight.
 - **Open and close automatically**: the shop opens/closes itself by these hours. The big Open/Closed switch still overrides everything (use it for holidays).
 - **Let customers schedule orders**: customers can pick a delivery/pickup time, even while you're closed (pre-orders). Settings: slot length, max orders per slot (stops the kitchen being overloaded), how far ahead the earliest slot is, and how many days ahead people can book.
 - Scheduled orders arrive (and print) immediately with a big **FOR <day, time>** banner. Once accepted, orders due more than 90 minutes away move to the **Upcoming** tab and come back to Active when they're close.
@@ -99,6 +99,13 @@ Customers can pin their location at checkout ("Use my current location" or drag 
 - Works out of the box with OpenStreetMap (free, no key).
 - To use Google Maps in the picker, create a Maps JavaScript API key in Google Cloud (restrict it to your site's domain) and add `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in Vercel, then redeploy. Google requires a billing account but includes a monthly free allowance.
 - Settings → Map pin: make the pin required for delivery, and set where the map starts (use the button on the kitchen's own phone/PC).
+
+## Country, time zone & phone numbers
+
+Settings → **Country & time zone**: picking a country (UAE, Pakistan, Saudi, Qatar, Oman, Kuwait, Bahrain, India, Bangladesh, Egypt, UK, US) fills in its time zone, phone code, currency and map start point — then press Save. Any of these can be changed individually; **Other…** lets you choose any time zone and phone code.
+
+- **Time zone** drives opening hours, time slots, "today" in Sales/Expenses, promo start/end dates, order times on tickets, the order page and WhatsApp messages. Zones with daylight saving are handled.
+- **Phone code** turns what customers type into a full WhatsApp number: in Pakistan `0300 1234567` → `+923001234567`; in the UAE `050 123 4567` → `+971501234567`. Numbers typed with `+` or `00` are kept as international.
 
 ## Currency
 
