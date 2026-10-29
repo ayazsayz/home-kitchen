@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import AdminNav from "@/components/admin/AdminNav";
+import { currentStaff } from "@/lib/require-staff";
 
 export const metadata: Metadata = {
   title: "Kitchen",
@@ -9,10 +10,11 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const me = await currentStaff();
   return (
     <div className="min-h-dvh">
-      <AdminNav />
+      <AdminNav role={me?.role ?? "cook"} name={me?.name ?? ""} />
       <div className="mx-auto max-w-6xl px-4 py-6">{children}</div>
     </div>
   );

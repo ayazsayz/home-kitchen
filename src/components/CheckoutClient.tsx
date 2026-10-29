@@ -11,6 +11,7 @@ import type { Availability } from "@/lib/data";
 import type { DeliveryZone, Settings } from "@/lib/types";
 import type { LatLng } from "./MapPicker";
 import { Stepper } from "./MenuClient";
+import { LAST_ORDER_KEY } from "./LastOrderCard";
 import { Stamps, loyaltyText, useLoyalty } from "./LoyaltyCard";
 import { rewardDiscount } from "@/lib/loyalty";
 
@@ -168,6 +169,9 @@ export default function CheckoutClient({
           SAVED,
           JSON.stringify({ name: form.name, phone: form.phone, address: form.address, zoneId: form.zoneId, pin }),
         );
+      } catch {}
+      try {
+        localStorage.setItem(LAST_ORDER_KEY, data.id);
       } catch {}
       cart.clear();
       if (data.redirectUrl) window.location.href = data.redirectUrl;

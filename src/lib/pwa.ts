@@ -15,8 +15,11 @@ function shortName(name: string) {
 /** Web app manifest for the customer app ("/") or the kitchen dashboard ("/admin"). */
 export async function manifestFor(kind: "shop" | "kitchen") {
   let name = "Home Kitchen";
+  let color = "#c2410c";
   try {
-    name = (await getSettings()).name || name;
+    const s = await getSettings();
+    name = s.name || name;
+    color = s.brand_color || color;
   } catch {}
   const kitchen = kind === "kitchen";
   const body = {
@@ -29,7 +32,7 @@ export async function manifestFor(kind: "shop" | "kitchen") {
     display: "standalone",
     orientation: kitchen ? "any" : "portrait",
     background_color: "#faf6ef",
-    theme_color: "#c2410c",
+    theme_color: color,
     icons: [
       { src: "/app-icon/192", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/app-icon/512", sizes: "512x512", type: "image/png", purpose: "any" },

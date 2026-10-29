@@ -9,7 +9,9 @@ Next.js 15 + Supabase. Customers order from their phone (cash on delivery or pic
 | `/` | Customers | Menu, search, cart |
 | `/checkout` | Customers | Delivery/pickup, ASAP or scheduled time, map pin, promo code, cash or card |
 | `/order/<id>` | Customers | Live order status (auto-refreshes) |
-| `/admin` | Staff | Live orders: accept → cooking → ready → delivered, reject, print, call/WhatsApp |
+| `/admin` | Owner, manager, cook | Live orders: accept → cooking → ready → delivered, reject, print, call/WhatsApp, assign driver |
+| `/admin/driver` | Driver, owner, manager | Deliveries: pick up, map, call/WhatsApp, delivered, cash to hand over |
+| `/admin/staff` | Owner | Staff logins and roles |
 | `/admin/menu` | Staff | Categories, dishes, photos, prices, sold-out toggle, daily stock limits |
 | `/admin/customers` | Staff | Every customer by phone: orders, spend, favourites, history, WhatsApp message, CSV |
 | `/admin/promos` | Staff | Promo codes: % off, AED off, free delivery, limits, dates, usage |
@@ -146,6 +148,38 @@ The site is an installable web app:
 - **Kitchen**: on the Orders screen, install the dashboard on the kitchen tablet/PC — it opens straight to `/admin`.
 - If the connection drops, a friendly offline page is shown; menu, orders and prices are never cached, so everything stays live.
 
+## Staff logins & roles
+
+Admin → **Staff** (owner only): add each person with their own email + password and a role. Turn **Active** off to remove access instantly; **Reset password** sets a new one.
+
+| Role | Can open |
+|---|---|
+| Owner | Everything, including Sales, Settings and Staff |
+| Manager | Orders, Deliveries, Menu, Customers, Promos, Expenses |
+| Cook | Orders only |
+| Driver | Their deliveries only |
+
+Rules are enforced twice: pages redirect to what the role may open, and the **database** itself (row-level security) refuses anything else, so a cook or driver can't read sales/expenses or change settings even with technical tricks. Migration 008 makes every existing login an **owner**, so nobody is locked out. There must always be at least one active owner.
+
+## Deliveries (driver page)
+
+Drivers sign in on their phone and land on **Deliveries**:
+- **Ready to pick up**: delivery orders the kitchen marked Ready (unassigned, or assigned to them). Tap **Pick up** → it moves to **On the way** and the order shows "Out for delivery".
+- **On the way**: address, area, notes, items, **Map** (customer's pin, or an address search), **Call**, **WhatsApp**, and the cash to collect (or PAID).
+- **Delivered** completes the order. "Cash to hand over" totals the cash they collected today.
+
+The owner can assign a driver from the order card on the Orders screen, and sees **Drivers today** (on the way, delivered, cash collected per driver) on the Deliveries page.
+
+## Branding
+
+Settings → **Branding**: upload a logo (square) and a wide cover photo, pick a brand colour and write a tagline. They appear on the menu, the order buttons and links, the phone's address bar, the installed app icon (your logo) and the top of printed receipts. A live preview shows the result before you save.
+
+## Order again
+
+- The customer's order page has **Order this again**: it refills the cart with the same dishes and options at **today's** prices and opens checkout.
+- Returning customers see **Your last order** at the top of the menu (remembered on their device) with an **Order again** button.
+- Dishes that were removed, are sold out or whose options changed are left out, with a note first.
+
 ## Ideas for later
 
-Fully automatic WhatsApp messages (WhatsApp Cloud API), combo deals, staff logins with roles, a driver page, and an Android phone + Bluetooth printer setup via RawBT.
+Fully automatic WhatsApp messages (WhatsApp Cloud API), combo deals, ingredient stock, recurring expenses, Arabic/Urdu, and an Android phone + Bluetooth printer setup via RawBT.

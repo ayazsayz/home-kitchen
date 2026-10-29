@@ -9,6 +9,7 @@ import { fmtWhen } from "@/lib/schedule";
 import OptionsSheet from "./OptionsSheet";
 import LoyaltyCard from "./LoyaltyCard";
 import InstallPrompt from "./InstallPrompt";
+import LastOrderCard from "./LastOrderCard";
 
 export default function MenuClient({
   settings,
@@ -45,10 +46,21 @@ export default function MenuClient({
 
   return (
     <div className="mx-auto max-w-2xl pb-32">
-      <header className="px-4 pt-8 pb-4">
-        <h1 className="text-3xl font-bold tracking-tight">{settings.name}</h1>
+      {settings.cover_url && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={settings.cover_url} alt="" className="h-44 w-full object-cover sm:h-56 sm:rounded-b-3xl" data-testid="cover" />
+      )}
+      <header className={`px-4 pb-4 ${settings.cover_url ? "pt-0" : "pt-8"}`}>
+        <div className={`flex items-end gap-3 ${settings.cover_url && settings.logo_url ? "-mt-10" : ""}`}>
+          {settings.logo_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={settings.logo_url} alt={`${settings.name} logo`} data-testid="logo"
+              className="h-20 w-20 shrink-0 rounded-2xl border-4 border-cream bg-paper object-contain shadow-sm" />
+          )}
+          <h1 className={`text-3xl font-bold tracking-tight ${settings.cover_url && !settings.logo_url ? "mt-4" : ""}`}>{settings.name}</h1>
+        </div>
         <p className="mt-1 text-muted">
-          Home-cooked, made to order · {settings.card_enabled ? "Cash or card" : "Cash on delivery"}
+          {settings.tagline ? `${settings.tagline} · ` : ""}{settings.card_enabled ? "Cash or card" : "Cash on delivery"}
         </p>
         {!availability.asap && (
           <div className="mt-4 rounded-xl border border-brand/30 bg-brand/10 px-4 py-3 text-brand-dark">
@@ -65,6 +77,7 @@ export default function MenuClient({
             )}
           </div>
         )}
+        <LastOrderCard />
         {settings.loyalty_enabled && <LoyaltyCard currency={cur} />}
         <InstallPrompt name={settings.name} />
         <input className="input mt-4" placeholder="Search the menu" value={q} onChange={(e) => setQ(e.target.value)} />

@@ -1,5 +1,6 @@
 import { currencyOf } from "./format";
 import { validTz } from "./tz";
+import { DEFAULT_BRAND, normalizeHex } from "./brand";
 import type { Settings } from "./types";
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
@@ -20,6 +21,10 @@ export function withSettingDefaults(s: Record<string, unknown>): Settings {
     loyalty_max: s.loyalty_max == null ? null : Number(s.loyalty_max),
     loyalty_min_order: Number(s.loyalty_min_order) || 0,
     summary_email: String(s.summary_email ?? ""),
+    logo_url: String(s.logo_url ?? ""),
+    cover_url: String(s.cover_url ?? ""),
+    brand_color: normalizeHex(String(s.brand_color ?? "")) ?? DEFAULT_BRAND,
+    tagline: s.tagline == null ? "Home-cooked, made to order" : String(s.tagline),
     expense_categories: Array.isArray(s.expense_categories) && s.expense_categories.length ? (s.expense_categories as string[]) : DEFAULT_EXPENSE_CATEGORIES,
     country: String(s.country || "AE"),
     timezone: validTz(s.timezone as string),
