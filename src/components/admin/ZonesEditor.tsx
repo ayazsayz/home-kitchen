@@ -64,7 +64,7 @@ export default function ZonesEditor() {
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-xl font-bold">Delivery areas</h2>
+        <h2 className="font-semibold">Delivery areas</h2>
         <p className="text-sm text-muted">
           Customers pick their area at checkout and pay that fee. With no areas, the single delivery fee in Settings is used.
         </p>
@@ -104,7 +104,7 @@ export default function ZonesEditor() {
                   <input type="checkbox" className="h-4 w-4 accent-ok" checked={r.active} onChange={(e) => set(i, { active: e.target.checked })} />
                 </td>
                 <td className="px-1 py-1.5">
-                  <button className="px-1 text-red-600" onClick={() => remove(i)} aria-label="Delete area">✕</button>
+                  <button type="button" className="px-1 text-red-600" onClick={() => remove(i)} aria-label="Delete area">✕</button>
                 </td>
               </tr>
             ))}
@@ -113,10 +113,10 @@ export default function ZonesEditor() {
       </div>
 
       <div className="flex items-center gap-3">
-        <button className="btn-ghost" onClick={() => setRows([...rows, { name: "", fee: 0, min_order: null, active: true, sort: rows.length }])}>
+        <button type="button" className="btn-ghost" onClick={() => setRows([...rows, { name: "", fee: 0, min_order: null, active: true, sort: rows.length }])}>
           + Add area
         </button>
-        <button className="btn" onClick={saveAll} disabled={busy}>{busy ? "Saving…" : "Save areas"}</button>
+        <button type="button" className="btn" onClick={saveAll} disabled={busy}>{busy ? "Saving…" : "Save areas"}</button>
         {msg && <span className={`text-sm ${msg === "Saved" ? "text-ok" : "text-red-700"}`}>{msg}</span>}
       </div>
     </section>

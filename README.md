@@ -18,7 +18,7 @@ Next.js 15 + Supabase. Customers order from their phone (cash on delivery or pic
 | `/admin/promos` | Staff | Promo codes: % off, AED off, free delivery, limits, dates, usage |
 | `/admin/sales` | Staff | Daily summary (share on WhatsApp), revenue, best sellers, dish profit, by-day, CSV export |
 | `/admin/expenses` | Staff | Record shopping & running costs, receipt photos, profit & cash-in-hand report, CSV |
-| `/admin/settings` | Staff | Country & time zone, currency, open/closed, opening hours & pre-orders, map pin, delivery areas & fees, card payments, WhatsApp messages, VAT/TRN, test print |
+| `/admin/settings` | Owner | Tabs: General (name, branding), Hours, Delivery (fee, areas, map pin), Payments & tax, Region & language, WhatsApp, Loyalty, Daily summary. One Save for all tabs; test print |
 
 ## Setup (≈15 min)
 
