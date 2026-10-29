@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { normalisePhone, round2 } from "@/lib/format";
+import { currencyOf, money, normalisePhone, roundMoney } from "@/lib/format";
 import { resolveOptions } from "@/lib/options";
 import { cardAvailable, startPayment } from "@/lib/payments/service";
 import { checkPromo } from "@/lib/promo-server";
@@ -52,6 +52,8 @@ export async function POST(req: Request) {
   const { data: settingsRow, error: sErr } = await db.from("settings").select("*").eq("id", 1).single();
   if (sErr || !settingsRow) return bad("Restaurant not configured", 500);
   const settings = withSettingDefaults(settingsRow);
+  const cur = currencyOf(settings);
+  const round = (n: number) => roundMoney(n, cur.decimals);
 
   // ----- when: ASAP or a scheduled slot -----
   const avail = await getAvailability(settings);
@@ -120,32 +122,32 @@ export async function POST(req: Request) {
       Array.isArray(l.choiceIds) ? l.choiceIds.filter((x) => typeof x === "string") : [],
     );
     if (!opts.ok) return bad(opts.error);
-    const unit = round2(Number(m.price) + opts.extra);
+    const unit = round(Number(m.price) + opts.extra);
     orderItems.push({
       menu_item_id: m.id,
       name: m.name,
       unit_price: unit,
       qty: l.qty,
-      line_total: round2(unit * l.qty),
+      line_total: round(unit * l.qty),
       options: opts.picked,
     });
   }
 
-  const subtotal = round2(orderItems.reduce((s, i) => s + i.line_total, 0));
+  const subtotal = round(orderItems.reduce((s, i) => s + i.line_total, 0));
   if (minOrder > 0 && subtotal < minOrder) {
-    return bad(`Minimum order${zoneName ? ` for ${zoneName}` : ""} is ${settings.currency} ${minOrder.toFixed(2)}`);
+    return bad(`Minimum order${zoneName ? ` for ${zoneName}` : ""} is ${money(minOrder, cur)}`);
   }
 
   // ----- promo code -----
   let discount = 0;
   let promoCode: string | null = null;
   if (body.promo_code && String(body.promo_code).trim()) {
-    const promo = await checkPromo(String(body.promo_code), { subtotal, deliveryFee: fee, isDelivery: type === "delivery", phone }, settings.currency);
+    const promo = await checkPromo(String(body.promo_code), { subtotal, deliveryFee: fee, isDelivery: type === "delivery", phone }, cur);
     if (!promo.ok) return NextResponse.json({ error: promo.error, code: "promo_invalid" }, { status: 400 });
-    discount = Math.min(promo.discount, round2(subtotal + fee));
+    discount = Math.min(promo.discount, round(subtotal + fee));
     promoCode = promo.code ?? null;
   }
-  const total = round2(subtotal + fee - discount);
+  const total = round(subtotal + fee - discount);
 
   // ----- payment method -----
   const card = body.payment_method === "card";

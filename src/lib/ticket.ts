@@ -1,5 +1,5 @@
 "use client";
-import { money, timeShort, vatIncluded } from "./format";
+import { currencyOf, money, timeShort, vatIncluded } from "./format";
 import { optionsText } from "./options";
 import { fmtWhen } from "./schedule";
 import { mapsLink } from "./maps";
@@ -36,7 +36,7 @@ function kitchenTicket(o: Order) {
 
 /** Customer receipt / delivery slip with prices and address. */
 function receipt(o: Order, s: Settings, qr: string) {
-  const c = s.currency;
+  const c = currencyOf(s);
   const rows = (o.order_items ?? [])
     .map(
       (i) =>
@@ -45,7 +45,7 @@ function receipt(o: Order, s: Settings, qr: string) {
         }</td><td style="text-align:right;white-space:nowrap">${money(i.line_total, c)}</td></tr>`,
     )
     .join("");
-  const vat = vatIncluded(o.total, o.vat_percent);
+  const vat = vatIncluded(o.total, o.vat_percent, c.decimals);
   return `
   <div class="ticket">
     <div style="text-align:center" class="big">${esc(s.name)}</div>

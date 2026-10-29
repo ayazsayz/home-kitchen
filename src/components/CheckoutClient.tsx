@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useCart } from "@/lib/cart";
-import { money, round2 } from "@/lib/format";
+import { currencyOf, money, roundMoney } from "@/lib/format";
 import { fmtWhen } from "@/lib/schedule";
 import type { Availability } from "@/lib/data";
 import type { DeliveryZone, Settings } from "@/lib/types";
@@ -76,9 +76,9 @@ export default function CheckoutClient({
   const fee = type !== "delivery" ? 0 : useZones ? (zone?.fee ?? 0) : settings.delivery_fee;
   const minOrder = useZones && zone?.min_order != null ? zone.min_order : settings.min_order;
   const discount = promo ? Math.min(promo.discount, cart.subtotal + fee) : 0;
-  const total = round2(cart.subtotal + fee - discount);
+  const c = currencyOf(settings);
+  const total = roundMoney(cart.subtotal + fee - discount, c.decimals ?? 2);
   const belowMin = minOrder > 0 && cart.subtotal < minOrder;
-  const c = settings.currency;
 
   // Slots grouped by day for the picker.
   const days = useMemo(() => {

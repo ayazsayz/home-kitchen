@@ -20,6 +20,9 @@ export type Settings = {
   phone: string;
   address: string;
   currency: string;
+  currency_symbol: string;
+  currency_decimals: number;
+  expense_categories: string[];
   delivery_fee: number;
   min_order: number;
   vat_percent: number;
@@ -162,4 +165,17 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   out_for_delivery: "Out for delivery",
   completed: "Completed",
   rejected: "Rejected",
+};
+
+export type ExpensePaidWith = "cash" | "card" | "bank";
+export type Expense = {
+  id: string;
+  spent_on: string; // YYYY-MM-DD (Dubai)
+  category: string;
+  description: string;
+  vendor: string;
+  amount: number;
+  paid_with: ExpensePaidWith;
+  receipt_path: string | null;
+  created_at: string;
 };

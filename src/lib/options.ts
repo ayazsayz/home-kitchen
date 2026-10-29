@@ -1,4 +1,4 @@
-import { round2 } from "./format";
+import { roundMoney } from "./format";
 import type { MenuItem, OptionGroup, PickedOption } from "./types";
 
 export type OptionResult =
@@ -31,7 +31,7 @@ export function resolveOptions(item: Pick<MenuItem, "name" | "option_groups">, c
     }
   }
   if (chosen.size) return { ok: false, error: `Some options for ${item.name} have changed. Please add it again.` };
-  return { ok: true, picked, extra: round2(extra), choiceIds: ids };
+  return { ok: true, picked, extra: roundMoney(extra, 3), choiceIds: ids };
 }
 
 export function cartKey(itemId: string, choiceIds: string[]) {

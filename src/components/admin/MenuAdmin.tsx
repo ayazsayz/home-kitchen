@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { money, normalise } from "@/lib/format";
+import { useShopCurrency } from "@/lib/use-currency";
 import type { Category, MenuItem } from "@/lib/types";
 import OptionGroupsEditor from "./OptionGroupsEditor";
 
@@ -12,6 +13,7 @@ const EMPTY: Draft = {
 
 export default function MenuAdmin() {
   const db = useMemo(() => supabaseBrowser(), []);
+  const cur = useShopCurrency();
   const [cats, setCats] = useState<Category[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -112,7 +114,7 @@ export default function MenuAdmin() {
     .filter((g) => g.c.id !== "__none" || g.list.length);
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
       <aside className="space-y-3">
         <h2 className="font-semibold">Categories</h2>
         <ul className="card divide-y divide-line">
@@ -160,7 +162,7 @@ export default function MenuAdmin() {
                       {i.description}
                     </div>
                   </button>
-                  <span className="w-24 text-right">{money(i.price)}</span>
+                  <span className="w-24 text-right">{money(i.price, cur)}</span>
                   <label className="flex items-center gap-1.5 text-sm">
                     <input type="checkbox" className="h-4 w-4 accent-ok" checked={i.available} onChange={() => toggle(i)} />
                     {i.available ? "Available" : "Sold out"}
@@ -187,7 +189,7 @@ export default function MenuAdmin() {
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-1">
                 <label className="label">Price</label>
-                <input className="input" type="number" min={0} step="0.5" required value={draft.price}
+                <input className="input" type="number" min={0} step="any" required value={draft.price}
                   onChange={(e) => setDraft({ ...draft, price: e.target.value as unknown as number })} />
               </div>
               <div className="col-span-2">

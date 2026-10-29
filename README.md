@@ -13,7 +13,8 @@ Next.js 15 + Supabase. Customers order from their phone (cash on delivery or pic
 | `/admin/menu` | Staff | Categories, dishes, photos, prices, sold-out toggle |
 | `/admin/promos` | Staff | Promo codes: % off, AED off, free delivery, limits, dates, usage |
 | `/admin/sales` | Staff | Revenue, order count, best sellers, by-day, CSV export |
-| `/admin/settings` | Staff | Open/closed, opening hours & pre-orders, map pin, delivery areas & fees, card payments, WhatsApp messages, VAT/TRN, test print |
+| `/admin/expenses` | Staff | Record shopping & running costs, receipt photos, profit & cash-in-hand report, CSV |
+| `/admin/settings` | Staff | Currency, open/closed, opening hours & pre-orders, map pin, delivery areas & fees, card payments, WhatsApp messages, VAT/TRN, test print |
 
 ## Setup (≈15 min)
 
@@ -46,7 +47,7 @@ Printing options per device: kitchen ticket (big quantities, no prices), custome
 - Prices are always recalculated on the server from the database, so customers can't tamper with totals.
 - The service role key is used only in server code (`src/lib/supabase-server.ts`). Never put it in a `NEXT_PUBLIC_` variable.
 - VAT: prices are treated as VAT-inclusive. Leave VAT at 0 unless the business is VAT-registered; with VAT > 0 and a TRN, the receipt prints as a tax invoice.
-- Times are shown in Dubai time.
+- Times are shown in Dubai time. Currency is set in Settings.
 
 ## Upgrading an existing install
 
@@ -98,6 +99,20 @@ Customers can pin their location at checkout ("Use my current location" or drag 
 - Works out of the box with OpenStreetMap (free, no key).
 - To use Google Maps in the picker, create a Maps JavaScript API key in Google Cloud (restrict it to your site's domain) and add `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` in Vercel, then redeploy. Google requires a billing account but includes a monthly free allowance.
 - Settings → Map pin: make the pin required for delivery, and set where the map starts (use the button on the kitchen's own phone/PC).
+
+## Currency
+
+Settings → Currency: pick from the list (AED, SAR, PKR, INR, USD…) or **Other** and type a 3-letter code. You can change the symbol shown (e.g. "Rs", "KD") and the decimal places (0, 2 or 3). Changing currency does **not** convert prices — update menu prices, delivery fees and promo amounts yourself. Card payments are charged in this currency, so check your provider supports it (Ziina is mainly AED).
+
+## Expenses & profit
+
+Admin → **Expenses**: record what you spend — meat, chicken, buns, packaging, gas, rent… Tap a category, type the amount, optionally add what/where and a receipt photo (stored privately, only staff can open it). Date, category and payment method are kept for the next entry so a shopping trip can be entered quickly.
+
+The top of the page shows, for the chosen period (today, 7 days, this month, last month or custom):
+- **Sales** (all orders except rejected/unpaid), **Expenses**, **Profit** and margin.
+- **Cash in hand** = cash sales − cash expenses — what should be in the cash box.
+
+Below: spending by category (click one to filter), the full list (edit/delete), and CSV export for your accountant. Edit the category list with **Edit categories**.
 
 ## Ideas for later
 
