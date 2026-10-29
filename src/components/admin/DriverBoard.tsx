@@ -9,6 +9,7 @@ import { dayStartIso, timeShort, todayIn } from "@/lib/tz";
 import { withSettingDefaults } from "@/lib/settings";
 import type { Role } from "@/lib/roles";
 import type { Order, Settings } from "@/lib/types";
+import { CashPanel, useDriverCash } from "./CashHandovers";
 
 /**
  * Phone screen for delivery drivers: pick up ready orders, open the map, call/WhatsApp the
@@ -19,6 +20,7 @@ export default function DriverBoard({ role, userId, name }: { role: Role; userId
   const [settings, setSettings] = useState<Settings | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [busy, setBusy] = useState<string>("");
+  const [tick, setTick] = useState(0); // bumps when orders reload so cash totals refresh
   const isDriver = role === "driver";
 
   const load = useCallback(async () => {
@@ -34,6 +36,7 @@ export default function DriverBoard({ role, userId, name }: { role: Role; userId
       .or(`status.in.(ready,out_for_delivery),and(status.eq.completed,delivered_at.gte.${since})`)
       .order("created_at");
     setOrders((data ?? []).map((o) => normaliseOrder(o) as Order));
+    setTick((n) => n + 1);
   }, [db]);
 
   useEffect(() => {
@@ -78,6 +81,7 @@ export default function DriverBoard({ role, userId, name }: { role: Role; userId
   const onTheWay = orders.filter((o) => o.status === "out_for_delivery" && (isDriver ? mine(o) : true));
   const done = orders.filter((o) => o.status === "completed" && (isDriver ? mine(o) : true));
   const cashOf = (list: Order[]) => roundMoney(list.filter((o) => o.payment_status !== "paid").reduce((s, o) => s + o.total, 0), 3);
+  const myCash = useDriverCash(db, isDriver ? userId : "", isDriver ? tick : -1);
 
   // Owner/manager: per-driver totals for today.
   const byDriver = new Map<string, { name: string; delivered: number; cash: number; onTheWay: number }>();
@@ -108,8 +112,22 @@ export default function DriverBoard({ role, userId, name }: { role: Role; userId
           </div>
           <div className="card p-4">
             <div className="text-sm text-muted">Cash to hand over</div>
-            <div className="mt-1 text-2xl font-bold">{money(cashOf(done), cur)}</div>
+            <div className="mt-1 text-2xl font-bold" data-testid="driver-balance">{money(myCash.balance, cur)}</div>
+            <div className="text-xs text-muted">today {money(cashOf(done), cur)}</div>
           </div>
+          {myCash.history.length > 0 && (
+            <div className="card col-span-2 p-4 text-sm" data-testid="driver-handovers">
+              <div className="mb-1 font-semibold">Handed over</div>
+              <ul className="divide-y divide-line">
+                {myCash.history.slice(0, 5).map((h) => (
+                  <li key={h.id} className="flex justify-between gap-2 py-1">
+                    <span>{timeShort(h.created_at, tz)} · to {h.received_by_name || "—"}{h.note ? ` · ${h.note}` : ""}</span>
+                    <b>{money(h.amount, cur)}</b>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       ) : (
         <section className="card overflow-x-auto p-4" data-testid="drivers-today">
@@ -135,6 +153,8 @@ export default function DriverBoard({ role, userId, name }: { role: Role; userId
           )}
         </section>
       )}
+
+      {!isDriver && <CashPanel db={db} cur={cur} tz={tz} me={{ userId, name }} refreshKey={tick} />}
 
       <Section title={`On the way (${onTheWay.length})`}>
         {onTheWay.length === 0 && <Empty>Nothing on the way.</Empty>}

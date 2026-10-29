@@ -1,5 +1,6 @@
 import { resolveOptions } from "./options";
-import type { CartLine, MenuItem, OrderItem } from "./types";
+import type { CartLine, Lang, MenuItem, OrderItem } from "./types";
+import { localize } from "./i18n";
 
 export type ReorderLine = Omit<CartLine, "key">;
 
@@ -7,7 +8,7 @@ export type ReorderLine = Omit<CartLine, "key">;
  * Rebuilds cart lines from a past order using TODAY's menu: current prices, current options.
  * Dishes that were removed, are sold out, or whose options no longer exist are skipped.
  */
-export function reorderLines(items: OrderItem[], menu: MenuItem[]): { lines: ReorderLine[]; skipped: string[] } {
+export function reorderLines(items: OrderItem[], menu: MenuItem[], lang: Lang = "en"): { lines: ReorderLine[]; skipped: string[] } {
   const lines: ReorderLine[] = [];
   const skipped: string[] = [];
   for (const it of items) {
@@ -31,7 +32,7 @@ export function reorderLines(items: OrderItem[], menu: MenuItem[]): { lines: Reo
     }
     lines.push({
       id: m.id,
-      name: m.name,
+      name: localize(m.name, m.name_i18n, lang),
       price: Math.round((m.price + res.extra) * 1000) / 1000,
       qty: it.qty,
       choiceIds: res.choiceIds,

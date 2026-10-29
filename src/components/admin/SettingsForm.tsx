@@ -1,4 +1,6 @@
 "use client";
+import { LANGS } from "@/lib/i18n";
+import type { Lang } from "@/lib/types";
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { CURRENCIES, currencyOf, money, normalise } from "@/lib/format";
@@ -45,6 +47,8 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
         country: s.country,
         timezone: validTz(s.timezone),
         phone_country_code: (s.phone_country_code || "").replace(/\D/g, "") || "971",
+        languages: ["en", ...s.languages.filter((l) => l === "ar" || l === "ur")],
+        default_language: ["en", ...s.languages].includes(s.default_language) ? s.default_language : "en",
         loyalty_enabled: s.loyalty_enabled,
         loyalty_every: Math.min(100, Math.max(2, Math.round(Number(s.loyalty_every)) || 10)),
         loyalty_kind: s.loyalty_kind,
@@ -113,6 +117,8 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
       <BrandingSettings s={s} set={set} />
 
       <RegionSettings s={s} setS={setS} />
+
+      <LanguageSettings s={s} setS={setS} />
 
       <HoursSettings s={s} set={set} />
 
@@ -383,6 +389,40 @@ function LoyaltySettings({ s, set }: { s: Settings; set: <K extends keyof Settin
           </p>
         </>
       )}
+    </div>
+  );
+}
+
+function LanguageSettings({ s, setS }: { s: Settings; setS: (fn: (cur: Settings | null) => Settings | null) => void }) {
+  const patch = (p: Partial<Settings>) => setS((cur) => (cur ? { ...cur, ...p } : cur));
+  const on = (l: Lang) => l === "en" || s.languages.includes(l);
+  const toggle = (l: Lang, v: boolean) => {
+    const languages = v ? [...new Set([...s.languages, l])] : s.languages.filter((x) => x !== l);
+    patch({ languages, default_language: !v && s.default_language === l ? "en" : s.default_language });
+  };
+  return (
+    <div className="card space-y-3 p-4" data-testid="language-settings">
+      <div>
+        <div className="font-semibold">🌐 Customer languages</div>
+        <p className="text-sm text-muted">
+          Customers can switch the menu, checkout and order page to these languages. Add dish names in each language under Menu → edit dish
+          (English is shown where you leave it empty). Kitchen tickets and staff screens stay in English.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-4">
+        {LANGS.map((l) => (
+          <label key={l.lang} className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="h-4 w-4 accent-brand" checked={on(l.lang)} disabled={l.lang === "en"}
+              onChange={(e) => toggle(l.lang, e.target.checked)} aria-label={`Offer ${l.label}`} />
+            {l.label}
+          </label>
+        ))}
+      </div>
+      <Field label="Default for new visitors">
+        <select id="default-language" className="input" value={s.default_language} onChange={(e) => patch({ default_language: e.target.value as Lang })}>
+          {LANGS.filter((l) => on(l.lang)).map((l) => <option key={l.lang} value={l.lang}>{l.label}</option>)}
+        </select>
+      </Field>
     </div>
   );
 }

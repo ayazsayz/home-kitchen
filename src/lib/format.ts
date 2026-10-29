@@ -67,7 +67,7 @@ export { timeShort } from "./tz";
 export { normalisePhone } from "./region";
 
 /** Postgres numerics arrive as strings — convert the money fields to numbers. */
-const NUMERIC = ["loyalty_value", "loyalty_max", "loyalty_min_order", "amount", "price", "fee", "discount", "value", "max_discount", "delivery_fee", "min_order", "vat_percent", "subtotal", "total", "unit_price", "line_total"];
+const NUMERIC = ["cost", "unit_cost", "rating", "loyalty_value", "loyalty_max", "loyalty_min_order", "amount", "price", "fee", "discount", "value", "max_discount", "delivery_fee", "min_order", "vat_percent", "subtotal", "total", "unit_price", "line_total"];
 export function normalise<T>(row: T): T {
   const out = { ...(row as Record<string, unknown>) };
   for (const k of NUMERIC) if (k in out && out[k] != null) out[k] = Number(out[k]);

@@ -39,6 +39,9 @@ export type Settings = {
   cover_url: string;
   brand_color: string;
   tagline: string;
+  // languages
+  languages: Lang[];
+  default_language: Lang;
   delivery_fee: number;
   min_order: number;
   vat_percent: number;
@@ -94,7 +97,11 @@ export type DeliveryZone = {
   sort: number;
 };
 
-export type Category = { id: string; name: string; sort: number };
+export type Lang = "en" | "ar" | "ur";
+/** Translations of a text: {"ar": "...", "ur": "..."} (English is the main field). */
+export type I18nText = Partial<Record<Lang, string>>;
+
+export type Category = { id: string; name: string; sort: number; name_i18n?: I18nText };
 
 export type OptionChoice = { id: string; name: string; price: number; available?: boolean };
 export type OptionGroup = {
@@ -117,6 +124,9 @@ export type MenuItem = {
   sort: number;
   option_groups: OptionGroup[];
   daily_limit: number | null;
+  cost?: number | null;
+  name_i18n?: I18nText;
+  description_i18n?: I18nText;
 };
 
 /** What the customer picked, as stored on the order line. */
@@ -131,6 +141,7 @@ export type OrderItem = {
   qty: number;
   line_total: number;
   options: PickedOption[];
+  unit_cost?: number | null;
 };
 
 export type Order = {
@@ -152,6 +163,7 @@ export type Order = {
   driver_name?: string;
   picked_up_at?: string | null;
   delivered_at?: string | null;
+  lang?: Lang;
   subtotal: number;
   delivery_fee: number;
   total: number;
@@ -198,5 +210,27 @@ export type Expense = {
   amount: number;
   paid_with: ExpensePaidWith;
   receipt_path: string | null;
+  created_at: string;
+};
+
+export type Review = {
+  id: string;
+  order_id: string;
+  rating: number;
+  comment: string;
+  customer_name: string;
+  customer_phone: string;
+  published: boolean;
+  seen: boolean;
+  created_at: string;
+};
+
+export type CashHandover = {
+  id: string;
+  driver_id: string;
+  driver_name: string;
+  amount: number;
+  note: string;
+  received_by_name: string;
   created_at: string;
 };

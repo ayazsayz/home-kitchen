@@ -1,5 +1,6 @@
 import { decimalsOf, money, roundMoney, type Currency } from "./format";
-import type { Settings } from "./types";
+import type { Lang, Settings } from "./types";
+import { t } from "./i18n";
 
 /** Orders that carry a loyalty reward use this in place of a promo code. */
 export const LOYALTY_CODE = "LOYALTY";
@@ -20,13 +21,14 @@ export type LoyaltyStatus = {
   minOrder: number;
 };
 
-export function rewardLabel(r: LoyaltyRules, cur?: string | Currency) {
-  if (r.loyalty_kind === "fixed") return `${money(r.loyalty_value, cur)} off`;
-  return `${Number(r.loyalty_value)}% off${r.loyalty_max ? ` (up to ${money(r.loyalty_max, cur)})` : ""}`;
+export function rewardLabel(r: LoyaltyRules, cur?: string | Currency, lang: Lang = "en") {
+  if (r.loyalty_kind === "fixed") return t(lang, "amountOff", { amount: money(r.loyalty_value, cur) });
+  const n = Number(r.loyalty_value);
+  return r.loyalty_max ? t(lang, "pctOffMax", { n, max: money(r.loyalty_max, cur) }) : t(lang, "pctOff", { n });
 }
 
 /** Status from the number of earlier qualifying orders for this phone. */
-export function statusFromCount(r: LoyaltyRules, count: number, cur?: string | Currency): LoyaltyStatus {
+export function statusFromCount(r: LoyaltyRules, count: number, cur?: string | Currency, lang: Lang = "en"): LoyaltyStatus {
   const every = Math.max(2, r.loyalty_every || 10);
   const stamps = count % every;
   return {
@@ -34,7 +36,7 @@ export function statusFromCount(r: LoyaltyRules, count: number, cur?: string | C
     every,
     stamps,
     due: r.loyalty_enabled && stamps === every - 1,
-    label: rewardLabel(r, cur),
+    label: rewardLabel(r, cur, lang),
     minOrder: r.loyalty_min_order || 0,
   };
 }
@@ -49,9 +51,9 @@ export function rewardDiscount(r: LoyaltyRules, subtotal: number, cur?: string |
   return v;
 }
 
-export function loyaltyText(s: LoyaltyStatus, cur?: string | Currency) {
+export function loyaltyText(s: LoyaltyStatus, cur?: string | Currency, lang: Lang = "en") {
   const left = s.every - 1 - s.stamps;
-  const min = s.minOrder > 0 ? ` (orders over ${money(s.minOrder, cur)})` : "";
-  if (s.due) return `🎉 Your next order gets ${s.label}!`;
-  return `${left} more order${left === 1 ? "" : "s"}${min}, then your next one gets ${s.label}.`;
+  const min = s.minOrder > 0 ? t(lang, "ordersOver", { amount: money(s.minOrder, cur) }) : "";
+  if (s.due) return t(lang, "nextReward", { label: s.label });
+  return t(lang, left === 1 ? "moreOrder" : "moreOrders", { n: left, min, label: s.label });
 }

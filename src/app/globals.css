@@ -54,3 +54,24 @@ body {
   .no-print { display: none !important; }
   .ticket { width: 100%; }
 }
+
+/* ---------- Arabic / Urdu ---------- */
+.customer-root[lang="ar"] {
+  font-family: "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+}
+.customer-root[lang="ur"] {
+  font-family: "Noto Nastaliq Urdu", "Noto Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  line-height: 2; /* Nastaliq needs room above and below */
+}
+.customer-root[lang="ur"] input,
+.customer-root[lang="ur"] select,
+.customer-root[lang="ur"] textarea,
+.customer-root[lang="ur"] button {
+  line-height: 1.9;
+}
+/* Phone numbers and codes stay left-to-right inside RTL text. */
+.customer-root[dir="rtl"] input[type="tel"],
+.customer-root[dir="rtl"] input[inputmode="tel"] {
+  direction: ltr;
+  text-align: right;
+}

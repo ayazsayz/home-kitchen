@@ -1,7 +1,7 @@
 import { currencyOf } from "./format";
 import { validTz } from "./tz";
 import { DEFAULT_BRAND, normalizeHex } from "./brand";
-import type { Settings } from "./types";
+import type { Lang, Settings } from "./types";
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
   "Meat", "Chicken", "Vegetables & fruit", "Bread & buns", "Dairy", "Spices & oil", "Groceries", "Packaging",
@@ -25,6 +25,8 @@ export function withSettingDefaults(s: Record<string, unknown>): Settings {
     cover_url: String(s.cover_url ?? ""),
     brand_color: normalizeHex(String(s.brand_color ?? "")) ?? DEFAULT_BRAND,
     tagline: s.tagline == null ? "Home-cooked, made to order" : String(s.tagline),
+    languages: (Array.isArray(s.languages) ? (s.languages as string[]) : ["en"]).filter((l): l is Lang => l === "en" || l === "ar" || l === "ur"),
+    default_language: s.default_language === "ar" || s.default_language === "ur" ? s.default_language : "en",
     expense_categories: Array.isArray(s.expense_categories) && s.expense_categories.length ? (s.expense_categories as string[]) : DEFAULT_EXPENSE_CATEGORIES,
     country: String(s.country || "AE"),
     timezone: validTz(s.timezone as string),

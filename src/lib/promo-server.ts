@@ -2,14 +2,15 @@ import "server-only";
 import { supabaseAdmin } from "./supabase-server";
 import { normalise } from "./format";
 import type { Currency } from "./format";
-import { cleanCode, computeDiscount, type PromoResult } from "./promo";
-import type { PromoCode } from "./types";
+import { cleanCode, computeDiscount, promoLabel, type PromoResult } from "./promo";
+import type { Lang, PromoCode } from "./types";
 
 /** Full promo check: rules + total usage + per-customer usage + first-order-only. */
 export async function checkPromo(
   rawCode: string,
   input: { subtotal: number; deliveryFee: number; isDelivery: boolean; phone: string },
   currency?: string | Currency,
+  lang: Lang = "en",
 ): Promise<PromoResult & { code?: string }> {
   const code = cleanCode(rawCode);
   if (!code) return { ok: false, error: "Enter a promo code" };
@@ -23,6 +24,7 @@ export async function checkPromo(
 
   const base = computeDiscount(promo, input, currency);
   if (!base.ok) return base;
+  if (lang !== "en") base.label = promoLabel(promo, currency, lang);
 
   // Orders that count as a use: everything except rejected and unpaid card orders.
   const countUses = async (filter: { code?: string; phone?: string }) => {

@@ -1,3 +1,4 @@
+import { isLang } from "@/lib/i18n";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { currencyOf, money, roundMoney } from "@/lib/format";
@@ -26,6 +27,7 @@ type Body = {
   promo_code?: string;
   location?: { lat: number; lng: number } | null;
   items?: { id: string; qty: number; choiceIds?: string[] }[];
+  lang?: string;
 };
 
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
@@ -114,7 +116,7 @@ export async function POST(req: Request) {
   const ids = [...new Set(lines.map((l) => l.id))];
   const { data: menu, error: mErr } = await db
     .from("menu_items")
-    .select("id, name, price, available, option_groups, daily_limit")
+    .select("id, name, price, available, option_groups, daily_limit, cost")
     .in("id", ids);
   if (mErr) return bad("Could not load menu", 500);
 
@@ -137,6 +139,7 @@ export async function POST(req: Request) {
       qty: l.qty,
       line_total: round(unit * l.qty),
       options: opts.picked,
+      unit_cost: m.cost == null ? null : Number(m.cost), // for the dish profit report
     });
   }
 
@@ -212,6 +215,7 @@ export async function POST(req: Request) {
       payment_method: card ? "card" : "cod",
       payment_status: card ? "pending" : "unpaid",
       status: card ? "pending_payment" : "new",
+      lang: isLang(body.lang) ? body.lang : "en",
     })
     .select("id, order_no")
     .single();

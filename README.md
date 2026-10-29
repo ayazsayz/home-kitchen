@@ -6,16 +6,17 @@ Next.js 15 + Supabase. Customers order from their phone (cash on delivery or pic
 
 | URL | Who | What |
 |---|---|---|
-| `/` | Customers | Menu, search, cart |
+| `/` | Customers | Menu, search, cart, rating & reviews, English / العربية / اردو |
 | `/checkout` | Customers | Delivery/pickup, ASAP or scheduled time, map pin, promo code, cash or card |
-| `/order/<id>` | Customers | Live order status (auto-refreshes) |
+| `/order/<id>` | Customers | Live order status (auto-refreshes), rate the order when done |
 | `/admin` | Owner, manager, cook | Live orders: accept → cooking → ready → delivered, reject, print, call/WhatsApp, assign driver |
-| `/admin/driver` | Driver, owner, manager | Deliveries: pick up, map, call/WhatsApp, delivered, cash to hand over |
+| `/admin/driver` | Driver, owner, manager | Deliveries: pick up, map, call/WhatsApp, delivered, cash held by each driver & handovers |
 | `/admin/staff` | Owner | Staff logins and roles |
-| `/admin/menu` | Staff | Categories, dishes, photos, prices, sold-out toggle, daily stock limits |
+| `/admin/menu` | Staff | Categories, dishes, photos, prices, cost & margin, translations, sold-out toggle, daily stock limits |
+| `/admin/reviews` | Owner, manager | Ratings: average, publish to menu, follow up on low ratings |
 | `/admin/customers` | Staff | Every customer by phone: orders, spend, favourites, history, WhatsApp message, CSV |
 | `/admin/promos` | Staff | Promo codes: % off, AED off, free delivery, limits, dates, usage |
-| `/admin/sales` | Staff | Daily summary (share on WhatsApp), revenue, best sellers, by-day, CSV export |
+| `/admin/sales` | Staff | Daily summary (share on WhatsApp), revenue, best sellers, dish profit, by-day, CSV export |
 | `/admin/expenses` | Staff | Record shopping & running costs, receipt photos, profit & cash-in-hand report, CSV |
 | `/admin/settings` | Staff | Country & time zone, currency, open/closed, opening hours & pre-orders, map pin, delivery areas & fees, card payments, WhatsApp messages, VAT/TRN, test print |
 
@@ -166,9 +167,12 @@ Rules are enforced twice: pages redirect to what the role may open, and the **da
 Drivers sign in on their phone and land on **Deliveries**:
 - **Ready to pick up**: delivery orders the kitchen marked Ready (unassigned, or assigned to them). Tap **Pick up** → it moves to **On the way** and the order shows "Out for delivery".
 - **On the way**: address, area, notes, items, **Map** (customer's pin, or an address search), **Call**, **WhatsApp**, and the cash to collect (or PAID).
-- **Delivered** completes the order. "Cash to hand over" totals the cash they collected today.
+- **Delivered** completes the order. "Cash to hand over" is all the cash they've collected and not yet handed over (today's amount shown below it), plus a list of their handovers.
 
 The owner can assign a driver from the order card on the Orders screen, and sees **Drivers today** (on the way, delivered, cash collected per driver) on the Deliveries page.
+
+### Cash handover
+**Cash with drivers** (owner/manager, on Deliveries) shows what each driver is holding: cash collected on delivered orders minus what they've handed over. When a driver gives you cash, tap **Received cash**, check the amount (pre-filled with their full balance; change it for a part payment), add a note if you like and save. Drivers can see their balance and handovers but can't record them. *First time after upgrading:* drivers' earlier deliveries count too, so record one handover per driver to start from zero.
 
 ## Branding
 
@@ -180,6 +184,21 @@ Settings → **Branding**: upload a logo (square) and a wide cover photo, pick a
 - Returning customers see **Your last order** at the top of the menu (remembered on their device) with an **Order again** button.
 - Dishes that were removed, are sold out or whose options changed are left out, with a note first.
 
+## Ratings & reviews
+
+- When an order is **Done**, the customer's order page asks *How was your order?* (1–5 stars + optional comment). One review per order. The default thank-you WhatsApp message now includes the rating link (if you've customised that message, add `{link}` yourself).
+- **3★ or less** shows as a red banner on the Orders screen until an owner/manager marks it seen, with a WhatsApp follow-up button on the **Reviews** page.
+- **Reviews** page: average, star breakdown, filters, and **Show on menu**. The menu shows the overall average and the reviews you publish (first name only, never the phone number).
+- The daily summary includes that day's rating.
+
+## Dish profit
+
+Menu → edit dish → **Cost to make** (ingredients + packaging for one portion). The menu list shows each dish's margin (red under 30%). Each order saves the cost at the time, so changing a cost later doesn't rewrite history; older orders use the current cost. **Sales → Dish profit** shows sold, sales, cost, profit and margin per dish for the chosen period. It's an estimate before discounts and delivery fees; real profit including rent, gas etc. is on **Expenses**. Option add-ons have no cost of their own.
+
+## Arabic / Urdu
+
+Settings → **Customer languages**: tick العربية and/or اردو and pick the default for new visitors. Customers then get a language switcher on the menu and order page; the menu, checkout, order tracking, stamp card and promo labels switch over, right-to-left, with an Urdu Nastaliq font. Add dish names/descriptions per language under Menu → edit dish, and category names via the category **Edit** button — anything left empty shows in English. Customers who ordered in Arabic or Urdu get the WhatsApp updates in their language (built-in wording; your custom English messages are used for English orders). Kitchen tickets, staff screens, option names and a few error messages stay in English.
+
 ## Ideas for later
 
-Fully automatic WhatsApp messages (WhatsApp Cloud API), combo deals, ingredient stock, recurring expenses, Arabic/Urdu, and an Android phone + Bluetooth printer setup via RawBT.
+Fully automatic WhatsApp messages (WhatsApp Cloud API), combo deals, ingredient stock, recurring expenses, and an Android phone + Bluetooth printer setup via RawBT.
