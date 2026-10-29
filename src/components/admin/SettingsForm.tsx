@@ -9,6 +9,7 @@ import { withSettingDefaults } from "@/lib/settings";
 import HoursSettings from "./HoursSettings";
 import { REGIONS, regionOf } from "@/lib/region";
 import { tzLabel, validTz } from "@/lib/tz";
+import { BRAND_PRESETS, DEFAULT_BRAND, brandStyle, isTooLight, normalizeHex } from "@/lib/brand";
 
 export default function SettingsForm({ paymentProvider }: { paymentProvider: string | null }) {
   const db = useMemo(() => supabaseBrowser(), []);
@@ -37,6 +38,10 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
         currency: code,
         currency_symbol: (s.currency_symbol || "").trim().slice(0, 8),
         currency_decimals: [0, 2, 3].includes(Number(s.currency_decimals)) ? Number(s.currency_decimals) : 2,
+        logo_url: s.logo_url,
+        cover_url: s.cover_url,
+        brand_color: normalizeHex(s.brand_color) ?? DEFAULT_BRAND,
+        tagline: (s.tagline || "").trim().slice(0, 80),
         country: s.country,
         timezone: validTz(s.timezone),
         phone_country_code: (s.phone_country_code || "").replace(/\D/g, "") || "971",
@@ -104,6 +109,8 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
         </div>
         <input type="checkbox" className="h-6 w-6 accent-ok" checked={s.is_open} onChange={(e) => set("is_open", e.target.checked)} />
       </label>
+
+      <BrandingSettings s={s} set={set} />
 
       <RegionSettings s={s} setS={setS} />
 
@@ -406,6 +413,110 @@ function SummarySettings({ s, set }: { s: Settings; set: <K extends keyof Settin
         {msg && <span className={msg.startsWith("Sent") ? "text-ok" : "text-muted"}>{msg}</span>}
       </div>
       <p className="text-xs text-muted">Needs a free Resend account: add <code>RESEND_API_KEY</code> and <code>CRON_SECRET</code> in Vercel (see README). Save first, then test.</p>
+    </div>
+  );
+}
+
+function BrandingSettings({ s, set }: { s: Settings; set: <K extends keyof Settings>(k: K, v: Settings[K]) => void }) {
+  const db = useMemo(() => supabaseBrowser(), []);
+  const [busy, setBusy] = useState<"" | "logo" | "cover">("");
+  const [err, setErr] = useState("");
+  const color = normalizeHex(s.brand_color) ?? DEFAULT_BRAND;
+
+  async function upload(kind: "logo" | "cover", file: File) {
+    if (file.size > 5 * 1024 * 1024) return setErr("Please use an image under 5 MB");
+    setBusy(kind);
+    setErr("");
+    const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const path = `branding/${kind}-${Date.now()}.${ext}`;
+    const { error } = await db.storage.from("menu").upload(path, file, { cacheControl: "31536000", upsert: false });
+    setBusy("");
+    if (error) return setErr(error.message);
+    set(kind === "logo" ? "logo_url" : "cover_url", db.storage.from("menu").getPublicUrl(path).data.publicUrl);
+  }
+
+  return (
+    <div className="card space-y-4 p-4">
+      <div>
+        <div className="font-semibold">Branding</div>
+        <p className="text-sm text-muted">Your logo, cover photo and colour on the menu, the app icon and printed receipts.</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <span className="label">Logo (square works best)</span>
+          <div className="flex items-center gap-3">
+            {s.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={s.logo_url} alt="Logo" className="h-16 w-16 rounded-xl border border-line bg-paper object-contain" />
+            ) : (
+              <div className="grid h-16 w-16 place-items-center rounded-xl text-2xl font-bold text-white" style={{ background: color }}>
+                {(s.name.trim()[0] || "K").toUpperCase()}
+              </div>
+            )}
+            <div className="space-y-1 text-sm">
+              <input type="file" accept="image/*" aria-label="Upload logo" className="block w-full text-xs"
+                onChange={(e) => e.target.files?.[0] && upload("logo", e.target.files[0])} />
+              {s.logo_url && <button type="button" className="text-red-600" onClick={() => set("logo_url", "")}>Remove</button>}
+              {busy === "logo" && <span className="text-muted">Uploading…</span>}
+            </div>
+          </div>
+        </div>
+        <div>
+          <span className="label">Cover photo (wide)</span>
+          <div className="space-y-1 text-sm">
+            {s.cover_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={s.cover_url} alt="Cover" className="h-16 w-full rounded-xl object-cover" />
+            )}
+            <input type="file" accept="image/*" aria-label="Upload cover photo" className="block w-full text-xs"
+              onChange={(e) => e.target.files?.[0] && upload("cover", e.target.files[0])} />
+            {s.cover_url && <button type="button" className="text-red-600" onClick={() => set("cover_url", "")}>Remove</button>}
+            {busy === "cover" && <span className="text-muted">Uploading…</span>}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <span className="label">Brand colour</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {BRAND_PRESETS.map((c) => (
+            <button type="button" key={c} aria-label={`Colour ${c}`} onClick={() => set("brand_color", c)}
+              className={`h-8 w-8 rounded-full border-2 ${color === c ? "border-ink" : "border-transparent"}`} style={{ background: c }} />
+          ))}
+          <input type="color" aria-label="Custom colour" className="h-8 w-10 cursor-pointer rounded border border-line bg-paper" value={color}
+            onChange={(e) => set("brand_color", e.target.value)} />
+          <input className="input w-28 py-1.5 font-mono text-sm" aria-label="Colour code" value={s.brand_color}
+            onChange={(e) => set("brand_color", e.target.value)} />
+        </div>
+        {isTooLight(color) && <p className="mt-1 text-xs text-amber-800">This colour is very light — white button text may be hard to read.</p>}
+      </div>
+
+      <div>
+        <label className="label" htmlFor="tagline">Tagline (under your name)</label>
+        <input id="tagline" className="input" maxLength={80} value={s.tagline} placeholder="Home-cooked, made to order"
+          onChange={(e) => set("tagline", e.target.value)} />
+      </div>
+
+      {/* Live preview */}
+      <div className="overflow-hidden rounded-2xl border border-line bg-cream" style={brandStyle(color)} data-testid="brand-preview">
+        {s.cover_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={s.cover_url} alt="" className="h-20 w-full object-cover" />
+        )}
+        <div className="flex items-center gap-3 p-3">
+          {s.logo_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={s.logo_url} alt="" className="h-10 w-10 rounded-lg bg-paper object-contain" />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="font-bold">{s.name}</div>
+            <div className="truncate text-xs text-muted">{s.tagline}</div>
+          </div>
+          <span className="btn px-3 py-1.5 text-sm">Add</span>
+        </div>
+      </div>
+      {err && <p className="text-sm text-red-700">{err}</p>}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { NOTIFY_STATUSES, renderMessage, whatsappLink } from "@/lib/whatsapp";
 import { fmtWhen } from "@/lib/schedule";
 import { mapsLink } from "@/lib/maps";
 import InstallPrompt from "@/components/InstallPrompt";
+import type { Role } from "@/lib/roles";
 import { STATUS_LABEL, type Order, type OrderStatus, type Settings } from "@/lib/types";
 
 const PRINTER_KEY = "hk_printer_v1";
@@ -27,7 +28,7 @@ const isUpcoming = (o: Order, now: number) =>
   !isDone(o) && o.status !== "new" && !!o.scheduled_for && +new Date(o.scheduled_for) - now > UPCOMING_MIN * 60000;
 const dueAt = (o: Order) => +new Date(o.scheduled_for ?? o.created_at);
 
-export default function OrdersBoard() {
+export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
   const db = useMemo(() => supabaseBrowser(), []);
   const [orders, setOrders] = useState<Order[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -36,6 +37,12 @@ export default function OrdersBoard() {
   const [soundOn, setSoundOn] = useState(false);
   const [live, setLive] = useState(false);
   const [waAuto, setWaAuto] = useState(false);
+  const [drivers, setDrivers] = useState<{ user_id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (role !== "owner") return; // only the owner can read the staff list
+    db.from("staff").select("user_id, name").eq("role", "driver").eq("active", true).order("name")
+      .then(({ data }) => setDrivers(data ?? []));
+  }, [db, role]);
   const audio = useRef<AudioContext | null>(null);
   const known = useRef<Set<string>>(new Set());
   const printerRef = useRef(printer);
@@ -143,6 +150,12 @@ export default function OrdersBoard() {
       clearInterval(poll);
     };
   }, [db, load]);
+
+  async function assignDriver(o: Order, driverId: string) {
+    const d = drivers.find((x) => x.user_id === driverId);
+    setOrders((cur) => cur.map((x) => (x.id === o.id ? { ...x, driver_id: d?.user_id ?? null, driver_name: d?.name ?? "" } : x)));
+    await db.from("orders").update({ driver_id: d?.user_id ?? null, driver_name: d?.name ?? "" }).eq("id", o.id);
+  }
 
   async function setStatus(o: Order, status: OrderStatus) {
     // Must open synchronously inside the click, or the browser blocks the popup.
@@ -310,6 +323,20 @@ export default function OrdersBoard() {
                   WhatsApp
                 </a>
                 {o.address && <p className="text-muted">{o.address}</p>}
+                {o.order_type === "delivery" && (o.driver_name || (drivers.length > 0 && ["accepted", "preparing", "ready", "out_for_delivery"].includes(o.status))) && (
+                  <div className="mt-1 flex items-center gap-2">
+                    <span>🛵</span>
+                    {drivers.length > 0 && o.status !== "completed" ? (
+                      <select className="rounded-lg border border-line bg-paper px-2 py-0.5 text-sm" value={o.driver_id ?? ""}
+                        aria-label={`Driver for order ${o.order_no}`} onChange={(e) => assignDriver(o, e.target.value)}>
+                        <option value="">No driver yet</option>
+                        {drivers.map((d) => <option key={d.user_id} value={d.user_id}>{d.name}</option>)}
+                      </select>
+                    ) : (
+                      <span className="font-medium">{o.driver_name}</span>
+                    )}
+                  </div>
+                )}
                 {mapsLink(o) && (
                   <a href={mapsLink(o)} target="_blank" rel="noreferrer" className="text-brand">📍 Open in Google Maps</a>
                 )}

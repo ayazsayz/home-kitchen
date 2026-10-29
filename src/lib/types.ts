@@ -34,6 +34,11 @@ export type Settings = {
   loyalty_max: number | null;
   loyalty_min_order: number;
   summary_email: string;
+  // branding
+  logo_url: string;
+  cover_url: string;
+  brand_color: string;
+  tagline: string;
   delivery_fee: number;
   min_order: number;
   vat_percent: number;
@@ -143,6 +148,10 @@ export type Order = {
   discount: number;
   location_lat: number | null;
   location_lng: number | null;
+  driver_id?: string | null;
+  driver_name?: string;
+  picked_up_at?: string | null;
+  delivered_at?: string | null;
   subtotal: number;
   delivery_fee: number;
   total: number;

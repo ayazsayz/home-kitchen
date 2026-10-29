@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getOrder, getSettings } from "@/lib/data";
+import { getMenu, getOrder, getSettings } from "@/lib/data";
+import { reorderLines } from "@/lib/reorder";
+import ReorderButton from "@/components/ReorderButton";
 import { currencyOf, money, timeShort } from "@/lib/format";
 import { optionsText } from "@/lib/options";
 import { cardAvailable, syncPayment } from "@/lib/payments/service";
@@ -46,6 +48,7 @@ export default async function OrderPage({
     else if (result === "failed") order = { ...order, payment_status: "failed" };
   }
   const settings = await getSettings();
+  const reorder = order.status === "pending_payment" ? null : reorderLines(order.order_items ?? [], (await getMenu()).items);
   const stampCard =
     settings.loyalty_enabled && !["rejected", "pending_payment"].includes(order.status)
       ? await loyaltyStatus(order.customer_phone, settings, currencyOf(settings))
@@ -134,6 +137,8 @@ export default async function OrderPage({
           <span>{money(order.total, c)}</span>
         </div>
       </section>
+
+      {reorder && <ReorderButton lines={reorder.lines} skipped={reorder.skipped} className="btn-ghost w-full" />}
 
       {stampCard && (
         <section className="card space-y-2 p-4" data-testid="order-loyalty">

@@ -2,18 +2,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase";
+import { NAV, ROLES, type Role } from "@/lib/roles";
 
-const LINKS = [
-  { href: "/admin", label: "Orders" },
-  { href: "/admin/menu", label: "Menu" },
-  { href: "/admin/customers", label: "Customers" },
-  { href: "/admin/promos", label: "Promos" },
-  { href: "/admin/sales", label: "Sales" },
-  { href: "/admin/expenses", label: "Expenses" },
-  { href: "/admin/settings", label: "Settings" },
-];
-
-export default function AdminNav() {
+export default function AdminNav({ role, name }: { role: Role; name: string }) {
+  const links = NAV.filter((n) => n.roles.includes(role));
   const path = usePathname();
   async function logout() {
     await supabaseBrowser().auth.signOut();
@@ -23,7 +15,7 @@ export default function AdminNav() {
     <nav className="no-print sticky top-0 z-20 border-b border-line bg-paper">
       <div className="mx-auto flex max-w-6xl items-center gap-1 overflow-x-auto px-4 py-2">
         <span className="mr-3 font-bold text-brand">Kitchen</span>
-        {LINKS.map((l) => (
+        {links.map((l) => (
           <Link
             key={l.href}
             href={l.href}
@@ -35,6 +27,9 @@ export default function AdminNav() {
           </Link>
         ))}
         <span className="flex-1" />
+        <span className="hidden whitespace-nowrap px-2 text-xs text-muted sm:inline" title="Signed in as">
+          {name} · {ROLES.find((r) => r.role === role)?.label}
+        </span>
         <Link href="/" target="_blank" className="px-3 py-1.5 text-sm text-muted">Shop ↗</Link>
         <button onClick={logout} className="px-3 py-1.5 text-sm text-muted">Log out</button>
       </div>

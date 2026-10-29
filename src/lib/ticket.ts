@@ -48,6 +48,7 @@ function receipt(o: Order, s: Settings, qr: string) {
   const vat = vatIncluded(o.total, o.vat_percent, c.decimals);
   return `
   <div class="ticket">
+    ${s.logo_url ? `<div style="text-align:center"><img src="${esc(s.logo_url)}" style="max-height:18mm;max-width:50mm" alt=""/></div>` : ""}
     <div style="text-align:center" class="big">${esc(s.name)}</div>
     ${s.phone ? `<div style="text-align:center">${esc(s.phone)}</div>` : ""}
     ${s.address ? `<div style="text-align:center">${esc(s.address)}</div>` : ""}
