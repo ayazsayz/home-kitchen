@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useCart } from "@/lib/cart";
 import { currencyOf, money, roundMoney } from "@/lib/format";
 import { fmtWhen } from "@/lib/schedule";
+import { regionOf } from "@/lib/region";
 import type { Availability } from "@/lib/data";
 import type { DeliveryZone, Settings } from "@/lib/types";
 import type { LatLng } from "./MapPicker";
@@ -210,7 +211,7 @@ export default function CheckoutClient({
         {!availability.canOrder ? (
           <p className="text-sm text-brand-dark">
             {settings.closed_message}
-            {availability.nextOpen && <> Opens {fmtWhen(availability.nextOpen)}.</>}
+            {availability.nextOpen && <> Opens {fmtWhen(availability.nextOpen, settings.timezone)}.</>}
           </p>
         ) : (
           <>
@@ -229,7 +230,7 @@ export default function CheckoutClient({
             </div>
             {!availability.asap && availability.slots.length > 0 && (
               <p className="text-sm text-muted">
-                We&apos;re closed right now{availability.nextOpen && <> (opens {fmtWhen(availability.nextOpen)})</>}, but you can pre-order.
+                We&apos;re closed right now{availability.nextOpen && <> (opens {fmtWhen(availability.nextOpen, settings.timezone)})</>}, but you can pre-order.
               </p>
             )}
             {when !== "asap" && availability.slots.length > 0 && (
@@ -275,7 +276,7 @@ export default function CheckoutClient({
         </div>
         <div>
           <label className="label" htmlFor="phone">Mobile number (WhatsApp)</label>
-          <input id="phone" className="input" required inputMode="tel" placeholder="05X XXX XXXX"
+          <input id="phone" className="input" required inputMode="tel" placeholder={regionOf(settings.country)?.mobileExample ?? "Mobile number"}
             value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         </div>
         {useZones && (

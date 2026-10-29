@@ -2,7 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { money, normaliseOrder, roundMoney } from "@/lib/format";
-import { useShopCurrency } from "@/lib/use-currency";
+import { useShop } from "@/lib/use-currency";
+import { addDays, dateIn, dateTimeFull, dayStartIso, todayIn } from "@/lib/tz";
 import type { Order } from "@/lib/types";
 
 const RANGES = [
@@ -12,35 +13,26 @@ const RANGES = [
   { key: "90", label: "Last 90 days", days: 89 },
 ] as const;
 
-/** Start of the day in Dubai time, `daysAgo` days back, as an ISO string. */
-function dubaiDayStart(daysAgo: number) {
-  const now = new Date();
-  const dubai = new Date(now.getTime() + 4 * 3600 * 1000);
-  dubai.setUTCHours(0, 0, 0, 0);
-  dubai.setUTCDate(dubai.getUTCDate() - daysAgo);
-  return new Date(dubai.getTime() - 4 * 3600 * 1000).toISOString();
-}
-const dubaiDate = (iso: string) => new Date(new Date(iso).getTime() + 4 * 3600 * 1000).toISOString().slice(0, 10);
-
 export default function SalesReport() {
   const db = useMemo(() => supabaseBrowser(), []);
-  const cur = useShopCurrency();
+  const { cur, tz, ready } = useShop();
   const [range, setRange] = useState<(typeof RANGES)[number]>(RANGES[0]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!ready) return; // wait for the shop's time zone so "today" is the shop's today
     setLoading(true);
     db.from("orders")
       .select("*, order_items(*)")
-      .gte("created_at", dubaiDayStart(range.days))
+      .gte("created_at", dayStartIso(addDays(todayIn(tz), -range.days), tz))
       .not("status", "in", "(rejected,pending_payment)")
       .order("created_at")
       .then(({ data }) => {
         setOrders((data ?? []).map((o) => normaliseOrder(o) as Order));
         setLoading(false);
       });
-  }, [db, range]);
+  }, [db, range, tz, ready]);
 
   const stats = useMemo(() => {
     const revenue = roundMoney(orders.reduce((s, o) => s + o.total, 0), 3);
@@ -54,7 +46,7 @@ export default function SalesReport() {
         const acc = items.get(i.name) ?? { qty: 0, amount: 0 };
         items.set(i.name, { qty: acc.qty + i.qty, amount: roundMoney(acc.amount + i.line_total, 3) });
       }
-      const d = dubaiDate(o.created_at);
+      const d = dateIn(o.created_at, tz);
       const cd = days.get(d) ?? { count: 0, amount: 0 };
       days.set(d, { count: cd.count + 1, amount: roundMoney(cd.amount + o.total, 3) });
     }
@@ -69,13 +61,13 @@ export default function SalesReport() {
       top: [...items.entries()].sort((a, b) => b[1].qty - a[1].qty),
       days: [...days.entries()].sort((a, b) => b[0].localeCompare(a[0])),
     };
-  }, [orders]);
+  }, [orders, tz]);
 
   function exportCsv() {
     const head = ["order_no", "date", "status", "type", "customer", "phone", "items", "area", "payment", "scheduled_for", "promo_code", "discount", "subtotal", "delivery_fee", "total"];
     const rows = orders.map((o) => [
       o.order_no,
-      new Date(o.created_at).toLocaleString("en-GB", { timeZone: "Asia/Dubai" }),
+      dateTimeFull(o.created_at, tz),
       o.status,
       o.order_type,
       o.customer_name,
@@ -83,7 +75,7 @@ export default function SalesReport() {
       (o.order_items ?? []).map((i) => `${i.qty}x ${i.name}${i.options?.length ? ` (${i.options.map((x) => x.name).join(", ")})` : ""}`).join("; "),
       o.zone_name ?? "",
       o.payment_status === "paid" ? "card" : "cash",
-      o.scheduled_for ? new Date(o.scheduled_for).toLocaleString("en-GB", { timeZone: "Asia/Dubai" }) : "",
+      o.scheduled_for ? dateTimeFull(o.scheduled_for, tz) : "",
       o.promo_code ?? "",
       o.discount ?? 0,
       o.subtotal,

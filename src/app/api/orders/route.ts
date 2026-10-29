@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
-import { currencyOf, money, normalisePhone, roundMoney } from "@/lib/format";
+import { currencyOf, money, roundMoney } from "@/lib/format";
+import { normalisePhone, validPhone } from "@/lib/region";
 import { resolveOptions } from "@/lib/options";
 import { cardAvailable, startPayment } from "@/lib/payments/service";
 import { checkPromo } from "@/lib/promo-server";
@@ -35,14 +36,14 @@ export async function POST(req: Request) {
   }
 
   const name = (body.customer_name ?? "").trim().slice(0, 80);
-  const phone = normalisePhone((body.customer_phone ?? "").trim()).slice(0, 20);
+  const rawPhone = (body.customer_phone ?? "").trim().slice(0, 40);
   const type = body.order_type === "pickup" ? "pickup" : "delivery";
   const address = (body.address ?? "").trim().slice(0, 300);
   const notes = (body.notes ?? "").trim().slice(0, 300);
   const lines = (body.items ?? []).filter((l) => l && typeof l.id === "string" && Number.isInteger(l.qty));
 
   if (!name) return bad("Please enter your name");
-  if (!/^\+?\d{7,15}$/.test(phone)) return bad("Please enter a valid mobile number");
+  if (!/\d{6,}/.test(rawPhone.replace(/\D/g, ""))) return bad("Please enter a valid mobile number");
   if (type === "delivery" && !address) return bad("Please enter a delivery address");
   if (!lines.length) return bad("Your cart is empty");
   if (lines.length > 50 || lines.some((l) => l.qty < 1 || l.qty > 50)) return bad("Invalid quantity");
@@ -53,6 +54,8 @@ export async function POST(req: Request) {
   if (sErr || !settingsRow) return bad("Restaurant not configured", 500);
   const settings = withSettingDefaults(settingsRow);
   const cur = currencyOf(settings);
+  const phone = normalisePhone(rawPhone, settings.phone_country_code).slice(0, 20);
+  if (!validPhone(phone)) return bad("Please enter a valid mobile number");
   const round = (n: number) => roundMoney(n, cur.decimals);
 
   // ----- when: ASAP or a scheduled slot -----

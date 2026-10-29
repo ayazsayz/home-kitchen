@@ -28,7 +28,7 @@ export function renderMessage(
   status: OrderStatus,
   order: Pick<Order, "id" | "order_no" | "customer_name" | "total" | "order_type" | "payment_status"> &
     Partial<Pick<Order, "scheduled_for">>,
-  settings: Pick<Settings, "name" | "currency" | "whatsapp_templates"> & Partial<Pick<Settings, "currency_symbol" | "currency_decimals">>,
+  settings: Pick<Settings, "name" | "currency" | "whatsapp_templates"> & Partial<Pick<Settings, "currency_symbol" | "currency_decimals" | "timezone">>,
   origin: string,
 ) {
   const cur = currencyOf(settings);
@@ -37,7 +37,7 @@ export function renderMessage(
     order_no: String(order.order_no),
     total: money(order.total, cur),
     when: order.scheduled_for
-      ? `${order.order_type === "pickup" ? "pickup" : "delivery"} ${fmtWhen(order.scheduled_for)}`
+      ? `${order.order_type === "pickup" ? "pickup" : "delivery"} ${fmtWhen(order.scheduled_for, settings.timezone)}`
       : "as soon as possible",
     payment_line:
       order.payment_status === "paid"

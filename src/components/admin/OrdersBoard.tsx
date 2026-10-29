@@ -263,7 +263,7 @@ export default function OrdersBoard() {
                 <div>
                   <div className="text-xl font-bold">#{o.order_no}</div>
                   <div className="text-sm text-muted">
-                    {timeShort(o.created_at)} · {o.order_type === "pickup" ? "Pickup" : "Delivery"}
+                    {timeShort(o.created_at, settings?.timezone)} · {o.order_type === "pickup" ? "Pickup" : "Delivery"}
                     {o.zone_name ? ` · ${o.zone_name}` : ""}
                   </div>
                   {o.scheduled_for && (() => {
@@ -271,7 +271,7 @@ export default function OrdersBoard() {
                     const tone = isDone(o) ? "bg-cream text-muted" : mins <= 30 ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-900";
                     return (
                       <div className={`mt-1 inline-block rounded-md px-2 py-0.5 text-sm font-semibold ${tone}`}>
-                        ⏰ For {fmtWhen(o.scheduled_for)}
+                        ⏰ For {fmtWhen(o.scheduled_for, settings?.timezone)}
                       </div>
                     );
                   })()}

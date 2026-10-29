@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { money, normalise } from "@/lib/format";
-import { useShopCurrency } from "@/lib/use-currency";
+import { useShop } from "@/lib/use-currency";
+import { dateIn, dayEndIso, dayStartIso } from "@/lib/tz";
 import { cleanCode, promoLabel } from "@/lib/promo";
 import type { PromoCode, PromoKind } from "@/lib/types";
 
@@ -14,7 +15,7 @@ type Draft = {
   value: string;
   min_order: string;
   max_discount: string;
-  starts_at: string; // yyyy-mm-dd (Dubai)
+  starts_at: string; // yyyy-mm-dd (shop time zone)
   ends_at: string;
   usage_limit: string;
   per_customer_limit: string;
@@ -27,10 +28,10 @@ const EMPTY: Draft = {
   starts_at: "", ends_at: "", usage_limit: "", per_customer_limit: "1", first_order_only: false, active: true,
 };
 
-// Dates are entered as Dubai calendar days: start = 00:00, end = 23:59:59 that day.
-const toStart = (d: string) => (d ? new Date(`${d}T00:00:00+04:00`).toISOString() : null);
-const toEnd = (d: string) => (d ? new Date(`${d}T23:59:59+04:00`).toISOString() : null);
-const toDay = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() + 4 * 3600e3).toISOString().slice(0, 10) : "");
+// Dates are entered as calendar days in the shop's time zone: start = 00:00, end = end of that day.
+const toStart = (d: string, tz: string) => (d ? dayStartIso(d, tz) : null);
+const toEnd = (d: string, tz: string) => (d ? new Date(Date.parse(dayEndIso(d, tz)) - 1000).toISOString() : null);
+const toDay = (iso: string | null, tz: string) => (iso ? dateIn(iso, tz) : "");
 const numOrNull = (v: string) => (v.trim() === "" ? null : Number(v));
 
 function status(p: PromoCode, uses: number) {
@@ -44,7 +45,7 @@ function status(p: PromoCode, uses: number) {
 
 export default function PromosAdmin() {
   const db = useMemo(() => supabaseBrowser(), []);
-  const cur = useShopCurrency();
+  const { cur, tz } = useShop();
   const [promos, setPromos] = useState<PromoCode[]>([]);
   const [uses, setUses] = useState<Record<string, { count: number; discount: number }>>({});
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -73,7 +74,7 @@ export default function PromosAdmin() {
     setDraft({
       id: p.id, code: p.code, description: p.description ?? "", kind: p.kind, value: String(p.value),
       min_order: p.min_order ? String(p.min_order) : "", max_discount: p.max_discount != null ? String(p.max_discount) : "",
-      starts_at: toDay(p.starts_at), ends_at: toDay(p.ends_at),
+      starts_at: toDay(p.starts_at, tz), ends_at: toDay(p.ends_at, tz),
       usage_limit: p.usage_limit != null ? String(p.usage_limit) : "",
       per_customer_limit: p.per_customer_limit != null ? String(p.per_customer_limit) : "",
       first_order_only: p.first_order_only, active: p.active,
@@ -97,8 +98,8 @@ export default function PromosAdmin() {
       value: draft.kind === "free_delivery" ? 0 : Number(draft.value) || 0,
       min_order: Number(draft.min_order) || 0,
       max_discount: draft.kind === "percent" ? numOrNull(draft.max_discount) : null,
-      starts_at: toStart(draft.starts_at),
-      ends_at: toEnd(draft.ends_at),
+      starts_at: toStart(draft.starts_at, tz),
+      ends_at: toEnd(draft.ends_at, tz),
       usage_limit: numOrNull(draft.usage_limit),
       per_customer_limit: numOrNull(draft.per_customer_limit),
       first_order_only: draft.first_order_only,
@@ -162,7 +163,7 @@ export default function PromosAdmin() {
                   p.min_order > 0 && `min ${money(p.min_order, cur)}`,
                   p.first_order_only && "first order",
                   p.per_customer_limit != null && `${p.per_customer_limit}× per customer`,
-                  p.ends_at && `until ${toDay(p.ends_at)}`,
+                  p.ends_at && `until ${toDay(p.ends_at, tz)}`,
                 ].filter(Boolean);
                 return (
                   <tr key={p.id} className="border-t border-line">

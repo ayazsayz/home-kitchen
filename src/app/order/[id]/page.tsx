@@ -57,10 +57,10 @@ export default async function OrderPage({
       <div>
         <p className="text-sm text-muted">{settings.name}</p>
         <h1 className="text-2xl font-bold">Order #{order.order_no}</h1>
-        <p className="text-sm text-muted">Placed {timeShort(order.created_at)}</p>
+        <p className="text-sm text-muted">Placed {timeShort(order.created_at, settings.timezone)}</p>
         {order.scheduled_for && (
           <p className="mt-2 inline-block rounded-lg bg-brand/10 px-3 py-1 font-medium text-brand-dark">
-            ⏰ {order.order_type === "pickup" ? "Pickup" : "Delivery"} {fmtWhen(order.scheduled_for)}
+            ⏰ {order.order_type === "pickup" ? "Pickup" : "Delivery"} {fmtWhen(order.scheduled_for, settings.timezone)}
           </p>
         )}
       </div>

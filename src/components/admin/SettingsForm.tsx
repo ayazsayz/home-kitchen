@@ -7,6 +7,8 @@ import { DEFAULT_TEMPLATES, NOTIFY_STATUSES, PLACEHOLDERS } from "@/lib/whatsapp
 import { STATUS_LABEL, type Order, type OrderStatus, type Settings } from "@/lib/types";
 import { withSettingDefaults } from "@/lib/settings";
 import HoursSettings from "./HoursSettings";
+import { REGIONS, regionOf } from "@/lib/region";
+import { tzLabel, validTz } from "@/lib/tz";
 
 export default function SettingsForm({ paymentProvider }: { paymentProvider: string | null }) {
   const db = useMemo(() => supabaseBrowser(), []);
@@ -35,6 +37,9 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
         currency: code,
         currency_symbol: (s.currency_symbol || "").trim().slice(0, 8),
         currency_decimals: [0, 2, 3].includes(Number(s.currency_decimals)) ? Number(s.currency_decimals) : 2,
+        country: s.country,
+        timezone: validTz(s.timezone),
+        phone_country_code: (s.phone_country_code || "").replace(/\D/g, "") || "971",
         phone: s.phone,
         address: s.address,
         delivery_fee: Number(s.delivery_fee) || 0,
@@ -67,7 +72,7 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
     if (!s) return;
     const sample: Order = {
       id: "test", order_no: 0, status: "new", order_type: "delivery",
-      customer_name: "Test Customer", customer_phone: "+971500000000", address: "Test address",
+      customer_name: "Test Customer", customer_phone: `+${s.phone_country_code}500000000`, address: "Test address",
       notes: "Test print", subtotal: 32, delivery_fee: Number(s.delivery_fee) || 0,
       total: 32 + (Number(s.delivery_fee) || 0), vat_percent: Number(s.vat_percent) || 0,
       payment_method: "cod", payment_status: "unpaid", zone_name: "Al Nahda", printed_at: null, created_at: new Date().toISOString(),
@@ -92,6 +97,8 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
         </div>
         <input type="checkbox" className="h-6 w-6 accent-ok" checked={s.is_open} onChange={(e) => set("is_open", e.target.checked)} />
       </label>
+
+      <RegionSettings s={s} setS={setS} />
 
       <HoursSettings s={s} set={set} />
 
@@ -238,6 +245,75 @@ function CurrencySettings({ s, setS }: { s: Settings; setS: (fn: (cur: Settings 
       <p className="text-sm">
         Preview: <b data-testid="currency-preview">{money(1250.5, preview)}</b>
       </p>
+    </div>
+  );
+}
+
+/** All IANA time zones the browser knows (falls back to the preset list). */
+function allTimeZones(): string[] {
+  try {
+    const list = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.("timeZone");
+    if (list?.length) return list;
+  } catch {}
+  return [...new Set(REGIONS.map((r) => r.timezone))];
+}
+
+function RegionSettings({ s, setS }: { s: Settings; setS: (fn: (cur: Settings | null) => Settings | null) => void }) {
+  const [note, setNote] = useState("");
+  const zones = useMemo(() => {
+    const z = allTimeZones();
+    return z.includes(s.timezone) ? z : [s.timezone, ...z];
+  }, [s.timezone]);
+  const patch = (p: Partial<Settings>) => setS((cur) => (cur ? { ...cur, ...p } : cur));
+
+  function pickCountry(code: string) {
+    const r = regionOf(code);
+    if (!r) return patch({ country: code });
+    const changes = [`time zone ${tzLabel(r.timezone)}`, `phone code +${r.phoneCode}`, "map start point"];
+    const p: Partial<Settings> = { country: r.country, timezone: r.timezone, phone_country_code: r.phoneCode, map_center_lat: r.lat, map_center_lng: r.lng };
+    if (r.currency !== s.currency) {
+      const c = CURRENCIES.find((x) => x.code === r.currency);
+      Object.assign(p, { currency: r.currency, currency_symbol: "", currency_decimals: c?.decimals ?? 2 });
+      changes.push(`currency ${r.currency} (prices are not converted)`);
+    }
+    patch(p);
+    setNote(`Set ${changes.join(", ")}. Press Save to apply.`);
+  }
+
+  return (
+    <div className="card space-y-3 p-4">
+      <div>
+        <div className="font-semibold">Country & time zone</div>
+        <p className="text-sm text-muted">Used for opening hours, order times, reports and turning local mobile numbers into WhatsApp numbers.</p>
+      </div>
+      <div>
+        <label className="label" htmlFor="country">Country</label>
+        <select id="country" className="input" value={regionOf(s.country) ? s.country : "__other"} onChange={(e) => pickCountry(e.target.value)}>
+          {REGIONS.map((r) => <option key={r.country} value={r.country}>{r.name}</option>)}
+          <option value="__other">Other…</option>
+        </select>
+      </div>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
+        <div>
+          <label className="label" htmlFor="timezone">Time zone</label>
+          <select id="timezone" className="input" value={s.timezone} onChange={(e) => patch({ timezone: e.target.value })}>
+            {zones.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label" htmlFor="phone-code">Phone code</label>
+          <div className="flex items-center gap-1">
+            <span className="text-muted">+</span>
+            <input id="phone-code" className="input" inputMode="numeric" maxLength={4} value={s.phone_country_code}
+              onChange={(e) => patch({ phone_country_code: e.target.value.replace(/\D/g, "") })} />
+          </div>
+        </div>
+      </div>
+      <p className="text-sm text-muted" data-testid="region-preview">
+        Local time now: <b>{new Date().toLocaleString("en-GB", { timeZone: validTz(s.timezone), weekday: "short", hour: "2-digit", minute: "2-digit" })}</b>
+        {" · "}customers can type <b>{regionOf(s.country)?.mobileExample ?? "their local number"}</b>
+      </p>
+      {note && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{note}</p>}
     </div>
   );
 }

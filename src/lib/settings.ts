@@ -1,4 +1,5 @@
 import { currencyOf } from "./format";
+import { validTz } from "./tz";
 import type { Settings } from "./types";
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
@@ -13,6 +14,9 @@ export function withSettingDefaults(s: Record<string, unknown>): Settings {
     whatsapp_templates: (s.whatsapp_templates as Settings["whatsapp_templates"]) ?? {},
     card_enabled: Boolean(s.card_enabled),
     expense_categories: Array.isArray(s.expense_categories) && s.expense_categories.length ? (s.expense_categories as string[]) : DEFAULT_EXPENSE_CATEGORIES,
+    country: String(s.country || "AE"),
+    timezone: validTz(s.timezone as string),
+    phone_country_code: String(s.phone_country_code || "971").replace(/\D/g, "") || "971",
     currency: String(s.currency || "AED").toUpperCase(),
     currency_symbol: String(s.currency_symbol ?? ""),
     currency_decimals: s.currency_decimals == null ? currencyOf({ currency: String(s.currency || "AED") }).decimals! : Number(s.currency_decimals),

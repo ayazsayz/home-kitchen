@@ -1,4 +1,5 @@
 "use client";
+import { tzLabel } from "@/lib/tz";
 import { DAY_NAMES, buildSlots, fmtWhen, hasHours, isOpenNow, nextOpening, toMinutes } from "@/lib/schedule";
 import type { Settings, TimeRange, WeeklyHours } from "@/lib/types";
 
@@ -23,7 +24,7 @@ export default function HoursSettings({ s, set }: { s: Settings; set: <K extends
     <div className="card space-y-4 p-4">
       <div>
         <div className="font-semibold">Opening hours & pre-orders</div>
-        <p className="text-sm text-muted">Dubai time. Close earlier than open (e.g. 18:00 → 01:00) means after midnight.</p>
+        <p className="text-sm text-muted">Times are in {tzLabel(s.timezone)}. Close earlier than open (e.g. 18:00 → 01:00) means after midnight.</p>
       </div>
 
       <div className="space-y-2">
@@ -94,7 +95,7 @@ export default function HoursSettings({ s, set }: { s: Settings; set: <K extends
 
       <div className="rounded-xl bg-cream px-3 py-2 text-sm">
         Right now: <b>{openNow ? "Open" : "Closed"}</b>
-        {next && <> · opens {fmtWhen(next.toISOString())}</>}
+        {next && <> · opens {fmtWhen(next.toISOString(), s.timezone)}</>}
         {s.allow_scheduled && preview.length > 0 && (
           <> · next slots: {preview.map((p) => `${p.day} ${p.time}`).join(", ")}</>
         )}

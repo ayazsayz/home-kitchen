@@ -19,6 +19,9 @@ export type Settings = {
   name: string;
   phone: string;
   address: string;
+  country: string;
+  timezone: string; // IANA, e.g. "Asia/Dubai"
+  phone_country_code: string; // digits, e.g. "971"
   currency: string;
   currency_symbol: string;
   currency_decimals: number;
@@ -46,7 +49,7 @@ export type Settings = {
   map_center_lng: number;
 };
 
-/** "HH:MM" in Dubai time. close < open means it runs past midnight. */
+/** "HH:MM" in the shop's time zone. close < open means it runs past midnight. */
 export type TimeRange = { open: string; close: string };
 /** Keyed "0".."6", 0 = Sunday. Missing or [] = closed that day. */
 export type WeeklyHours = Partial<Record<string, TimeRange[]>>;
@@ -170,7 +173,7 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
 export type ExpensePaidWith = "cash" | "card" | "bank";
 export type Expense = {
   id: string;
-  spent_on: string; // YYYY-MM-DD (Dubai)
+  spent_on: string; // YYYY-MM-DD (shop time zone)
   category: string;
   description: string;
   vendor: string;

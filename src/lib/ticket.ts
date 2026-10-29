@@ -11,7 +11,7 @@ const esc = (s: string) =>
 export type PrintMode = "kitchen" | "receipt" | "both";
 
 /** Kitchen ticket: large quantities, no prices. */
-function kitchenTicket(o: Order) {
+function kitchenTicket(o: Order, s: Pick<Settings, "timezone">) {
   const rows = (o.order_items ?? [])
     .map(
       (i) =>
@@ -23,8 +23,8 @@ function kitchenTicket(o: Order) {
   return `
   <div class="ticket">
     <div style="text-align:center" class="big">KITCHEN · #${o.order_no}</div>
-    <div style="text-align:center">${o.order_type === "pickup" ? "PICKUP" : "DELIVERY"}${o.zone_name ? ` · ${esc(o.zone_name)}` : ""} · ${esc(timeShort(o.created_at))}</div>
-    ${o.scheduled_for ? `<div class="big" style="text-align:center;border:2px solid #000;margin-top:4px">FOR ${esc(fmtWhen(o.scheduled_for).toUpperCase())}</div>` : ""}
+    <div style="text-align:center">${o.order_type === "pickup" ? "PICKUP" : "DELIVERY"}${o.zone_name ? ` · ${esc(o.zone_name)}` : ""} · ${esc(timeShort(o.created_at, s.timezone))}</div>
+    ${o.scheduled_for ? `<div class="big" style="text-align:center;border:2px solid #000;margin-top:4px">FOR ${esc(fmtWhen(o.scheduled_for, s.timezone).toUpperCase())}</div>` : ""}
     <hr/>
     <table>${rows}</table>
     ${o.notes ? `<hr/><div class="big">NOTE: ${esc(o.notes)}</div>` : ""}
@@ -53,9 +53,9 @@ function receipt(o: Order, s: Settings, qr: string) {
     ${s.address ? `<div style="text-align:center">${esc(s.address)}</div>` : ""}
     ${o.vat_percent > 0 && s.trn ? `<div style="text-align:center">TRN ${esc(s.trn)}</div><div style="text-align:center">TAX INVOICE</div>` : ""}
     <hr/>
-    <div>Order #${o.order_no} · ${esc(timeShort(o.created_at))}</div>
+    <div>Order #${o.order_no} · ${esc(timeShort(o.created_at, s.timezone))}</div>
     <div>${o.order_type === "pickup" ? "Pickup" : "Delivery"}${o.zone_name ? ` · ${esc(o.zone_name)}` : ""}</div>
-    ${o.scheduled_for ? `<div><b>For ${esc(fmtWhen(o.scheduled_for))}</b></div>` : ""}
+    ${o.scheduled_for ? `<div><b>For ${esc(fmtWhen(o.scheduled_for, s.timezone))}</b></div>` : ""}
     <hr/>
     <table>${rows}</table>
     <hr/>
@@ -93,7 +93,7 @@ const CSS = `
 
 export function ticketHtml(o: Order, s: Settings, mode: PrintMode, qr = "") {
   const parts =
-    mode === "kitchen" ? [kitchenTicket(o)] : mode === "receipt" ? [receipt(o, s, qr)] : [kitchenTicket(o), receipt(o, s, qr)];
+    mode === "kitchen" ? [kitchenTicket(o, s)] : mode === "receipt" ? [receipt(o, s, qr)] : [kitchenTicket(o, s), receipt(o, s, qr)];
   return `<!doctype html><html><head><meta charset="utf-8"><title>Order ${o.order_no}</title><style>${CSS}</style></head>
   <body>${parts.join('<div class="cut"></div>')}</body></html>`;
 }

@@ -3,15 +3,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { currencyOf, money, normalise, roundMoney, type Currency } from "@/lib/format";
 import { DEFAULT_EXPENSE_CATEGORIES } from "@/lib/settings";
+import { DEFAULT_TZ, addDays, dayEndIso, dayStartIso, todayIn, validTz } from "@/lib/tz";
 import type { Expense, ExpensePaidWith, Order } from "@/lib/types";
 
-// ---------- Dubai calendar helpers ----------
-const OFFSET = 4 * 3600e3;
-const today = () => new Date(Date.now() + OFFSET).toISOString().slice(0, 10);
-const addDays = (ymd: string, n: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86400e3).toISOString().slice(0, 10);
+// ---------- Calendar helpers (shop time zone) ----------
+let SHOP_TZ = DEFAULT_TZ; // set from settings on load
+const today = () => todayIn(SHOP_TZ);
 const monthStart = (ymd: string) => `${ymd.slice(0, 7)}-01`;
-const startIso = (ymd: string) => new Date(Date.parse(`${ymd}T00:00:00Z`) - OFFSET).toISOString();
-const endIso = (ymd: string) => new Date(Date.parse(`${ymd}T00:00:00Z`) + 86400e3 - OFFSET).toISOString();
+const startIso = (ymd: string) => dayStartIso(ymd, SHOP_TZ);
+const endIso = (ymd: string) => dayEndIso(ymd, SHOP_TZ);
 const fmtDate = (ymd: string) =>
   new Date(`${ymd}T12:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 
@@ -56,6 +56,7 @@ export default function ExpensesPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [editingCats, setEditingCats] = useState<string | null>(null);
+  const [tz, setTz] = useState<string | null>(null); // shop time zone; data loads once it's known
   const [fileKey, setFileKey] = useState(0); // resets the file picker after each save
 
   const range = rangeFor(rangeKey, custom);
@@ -64,13 +65,17 @@ export default function ExpensesPage() {
     db.from("settings").select("*").eq("id", 1).single().then(({ data }) => {
       if (!data) return;
       setCur(currencyOf(data));
+      SHOP_TZ = validTz(data.timezone);
+      setTz(SHOP_TZ);
       const cats = Array.isArray(data.expense_categories) && data.expense_categories.length ? data.expense_categories : DEFAULT_EXPENSE_CATEGORIES;
       setCategories(cats);
-      setDraft((d) => (d.amount ? d : { ...d, category: cats[0] }));
+      setDraft((d) => (d.amount ? d : { ...d, category: cats[0], spent_on: today() }));
+      setCustom({ from: monthStart(today()), to: today() });
     });
   }, [db]);
 
   const load = useCallback(async () => {
+    if (!tz) return;
     const [e, o] = await Promise.all([
       db.from("expenses").select("*").gte("spent_on", range.from).lte("spent_on", range.to)
         .order("spent_on", { ascending: false }).order("created_at", { ascending: false }),
@@ -79,7 +84,7 @@ export default function ExpensesPage() {
     ]);
     setExpenses((e.data ?? []).map((x) => normalise(x) as Expense));
     setOrders((o.data ?? []).map((x) => normalise(x) as Pick<Order, "total" | "payment_status">));
-  }, [db, range.from, range.to]);
+  }, [db, range.from, range.to, tz]);
   useEffect(() => {
     load();
   }, [load]);
