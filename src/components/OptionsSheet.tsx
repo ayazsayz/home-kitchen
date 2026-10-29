@@ -13,11 +13,14 @@ export default function OptionsSheet({
   onClose,
   onAdd,
   maxQty,
+  disabled = false,
 }: {
   item: MenuItem;
   currency: Currency;
   /** remaining daily stock for this dish (undefined = unlimited) */
   maxQty?: number;
+  /** sold out / shop not taking orders: show the dish but don't allow adding */
+  disabled?: boolean;
   onClose: () => void;
   onAdd: (choiceIds: string[], labels: string[], unitPrice: number, qty: number) => void;
 }) {
@@ -64,7 +67,7 @@ export default function OptionsSheet({
       >
         {item.image_url && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.image_url} alt="" className="h-44 w-full object-cover" />
+          <img src={item.image_url} alt="" className="aspect-[4/3] w-full object-cover sm:aspect-video" />
         )}
         <div className="space-y-5 p-5">
           <div>
@@ -127,7 +130,7 @@ export default function OptionsSheet({
               <span className="w-6 text-center font-semibold">{qty}</span>
               <button className="px-3 py-2 text-lg disabled:opacity-30" disabled={maxQty !== undefined && qty >= maxQty} onClick={() => setQty(qty + 1)} aria-label="Increase">+</button>
             </div>
-            <button className="btn flex-1 py-3" onClick={add} disabled={maxQty !== undefined && (maxQty < 1 || qty > maxQty)}>
+            <button className="btn flex-1 py-3" onClick={add} disabled={disabled || (maxQty !== undefined && (maxQty < 1 || qty > maxQty))}>
               {t("addPrice", { price: money(unit * qty, currency) })}
             </button>
           </div>

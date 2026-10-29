@@ -4,14 +4,21 @@ import { supabaseBrowser } from "@/lib/supabase";
 import { money, normalise } from "@/lib/format";
 import { useShop } from "@/lib/use-currency";
 import { dateIn, dayStartIso, todayIn } from "@/lib/tz";
-import type { Category, I18nText, Lang, MenuItem } from "@/lib/types";
+import type { Category, DishTag, I18nText, Lang, MenuItem } from "@/lib/types";
 import { LANGS } from "@/lib/i18n";
 import OptionGroupsEditor from "./OptionGroupsEditor";
+
+const TAGS: { key: DishTag; label: string }[] = [
+  { key: "spicy", label: "🌶️ Spicy" },
+  { key: "chef", label: "⭐ Chef's pick" },
+  { key: "new", label: "🆕 New" },
+  { key: "suggest", label: "✨ Suggest at checkout" },
+];
 
 type Draft = Omit<MenuItem, "id"> & { id?: string };
 const EMPTY: Draft = {
   category_id: null, name: "", description: "", price: 0, image_url: "", available: true, sort: 0, option_groups: [], daily_limit: null,
-  cost: null, name_i18n: {}, description_i18n: {},
+  cost: null, name_i18n: {}, description_i18n: {}, tags: [],
 };
 
 export default function MenuAdmin() {
@@ -34,7 +41,7 @@ export default function MenuAdmin() {
     ]);
     setLangs(((st.data?.languages ?? []) as Lang[]).filter((l) => l === "ar" || l === "ur"));
     setCats(c.data ?? []);
-    setItems((i.data ?? []).map((x) => ({ ...normalise(x), option_groups: x.option_groups ?? [] }) as MenuItem));
+    setItems((i.data ?? []).map((x) => ({ ...normalise(x), option_groups: x.option_groups ?? [], tags: x.tags ?? [] }) as MenuItem));
     if (!ready) return;
     // Sold today (for daily limits): orders whose service day is today in the shop's time zone.
     const today = todayIn(tz);
@@ -305,6 +312,22 @@ export default function MenuAdmin() {
               <p className="mt-1 text-xs text-muted">How many you can make per day. The menu shows &quot;only N left&quot; and marks it sold out at 0. Resets every day.</p>
             </div>
             <OptionGroupsEditor value={draft.option_groups} onChange={(option_groups) => setDraft({ ...draft, option_groups })} />
+            <fieldset>
+              <legend className="label">Badges</legend>
+              <div className="flex flex-wrap gap-2">
+                {TAGS.map((tg) => {
+                  const on = draft.tags?.includes(tg.key) ?? false;
+                  return (
+                    <label key={tg.key} className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${on ? "border-brand bg-brand/10 text-brand-dark" : "border-line"}`}>
+                      <input type="checkbox" className="sr-only" checked={on} aria-label={tg.label}
+                        onChange={(e) => setDraft({ ...draft, tags: e.target.checked ? [...(draft.tags ?? []), tg.key] : (draft.tags ?? []).filter((x) => x !== tg.key) })} />
+                      {tg.label}
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="mt-1 text-xs text-muted">🔥 Bestseller is added automatically to your top sellers. &quot;Suggest at checkout&quot; offers this dish as a one-tap extra (works for dishes without options).</p>
+            </fieldset>
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" className="h-4 w-4 accent-ok" checked={draft.available}
                 onChange={(e) => setDraft({ ...draft, available: e.target.checked })} />

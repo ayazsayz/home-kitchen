@@ -199,6 +199,16 @@ Menu → edit dish → **Cost to make** (ingredients + packaging for one portion
 
 Settings → **Customer languages**: tick العربية and/or اردو and pick the default for new visitors. Customers then get a language switcher on the menu and order page; the menu, checkout, order tracking, stamp card and promo labels switch over, right-to-left, with an Urdu Nastaliq font. Add dish names/descriptions per language under Menu → edit dish, and category names via the category **Edit** button — anything left empty shows in English. Customers who ordered in Arabic or Urdu get the WhatsApp updates in their language (built-in wording; your custom English messages are used for English orders). Kitchen tickets, staff screens, option names and a few error messages stay in English.
 
+## Menu look & badges
+
+- **Picture cards:** dishes with a photo or description show as big cards (2 per row on phones). Add photos under Menu → edit dish → Photo; until then a food emoji tile is shown. Plain extras (no photo, no description, e.g. add-ons) stay in a compact list.
+- **Header:** cover photo and logo (Settings → General), plus "Open now", rating, delivery time, delivery fee and minimum order. Set the delivery time in Settings → Delivery → *Usual delivery time* (leave empty to hide).
+- **Badges:** 🔥 Bestseller is automatic (top 3 dishes sold 3+ times in the last 30 days). Tick 🌶️ Spicy, ⭐ Chef's pick or 🆕 New when editing a dish.
+- **Dish sheet:** tapping a dish opens a big picture with the full description.
+- **"Goes well with your order"** at checkout: dishes you tick ✨ *Suggest at checkout* (e.g. fries, sauce, drinks), or otherwise cheaper extras from other categories. Only dishes without options, added in one tap.
+
+**Photo tips:** daylight near a window, 45° angle, same plain background, square crop, under ~1 MB.
+
 ## Ideas for later
 
 Fully automatic WhatsApp messages (WhatsApp Cloud API), combo deals, ingredient stock, recurring expenses, and an Android phone + Bluetooth printer setup via RawBT.
