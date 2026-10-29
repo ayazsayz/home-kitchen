@@ -1,4 +1,11 @@
+import type { Metadata } from "next";
 import AdminNav from "@/components/admin/AdminNav";
+
+export const metadata: Metadata = {
+  title: "Kitchen",
+  manifest: "/kitchen.webmanifest",
+  appleWebApp: { capable: true, title: "Kitchen", statusBarStyle: "default" },
+};
 
 export const dynamic = "force-dynamic";
 

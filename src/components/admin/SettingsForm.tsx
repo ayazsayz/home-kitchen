@@ -40,6 +40,13 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
         country: s.country,
         timezone: validTz(s.timezone),
         phone_country_code: (s.phone_country_code || "").replace(/\D/g, "") || "971",
+        loyalty_enabled: s.loyalty_enabled,
+        loyalty_every: Math.min(100, Math.max(2, Math.round(Number(s.loyalty_every)) || 10)),
+        loyalty_kind: s.loyalty_kind,
+        loyalty_value: Math.max(0, Number(s.loyalty_value) || 0),
+        loyalty_max: s.loyalty_max === null || (s.loyalty_max as unknown) === "" ? null : Number(s.loyalty_max),
+        loyalty_min_order: Math.max(0, Number(s.loyalty_min_order) || 0),
+        summary_email: (s.summary_email || "").trim(),
         phone: s.phone,
         address: s.address,
         delivery_fee: Number(s.delivery_fee) || 0,
@@ -110,6 +117,10 @@ export default function SettingsForm({ paymentProvider }: { paymentProvider: str
       </div>
 
       <CurrencySettings s={s} setS={setS} />
+
+      <LoyaltySettings s={s} set={set} />
+
+      <SummarySettings s={s} set={set} />
 
       <div className="card grid grid-cols-2 gap-3 p-4">
         <Field label="Delivery fee (if no areas)"><input className="input" type="number" min={0} step="any" value={s.delivery_fee} onChange={(e) => set("delivery_fee", e.target.value as unknown as number)} /></Field>
@@ -314,6 +325,87 @@ function RegionSettings({ s, setS }: { s: Settings; setS: (fn: (cur: Settings | 
         {" · "}customers can type <b>{regionOf(s.country)?.mobileExample ?? "their local number"}</b>
       </p>
       {note && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{note}</p>}
+    </div>
+  );
+}
+
+function LoyaltySettings({ s, set }: { s: Settings; set: <K extends keyof Settings>(k: K, v: Settings[K]) => void }) {
+  const cur = currencyOf(s);
+  const n = Math.max(2, Number(s.loyalty_every) || 10);
+  return (
+    <div className="card space-y-3 p-4">
+      <label className="flex items-center justify-between gap-3">
+        <span>
+          <span className="font-semibold">⭐ Loyalty stamps</span>
+          <span className="block text-sm text-muted">Customers collect a stamp per order (by mobile number). The reward is applied automatically at checkout.</span>
+        </span>
+        <input type="checkbox" className="h-5 w-5 accent-ok" checked={s.loyalty_enabled} onChange={(e) => set("loyalty_enabled", e.target.checked)} aria-label="Loyalty on" />
+      </label>
+      {s.loyalty_enabled && (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Field label="Every Nth order">
+              <input id="loyalty-every" className="input" type="number" min={2} max={100} value={s.loyalty_every}
+                onChange={(e) => set("loyalty_every", e.target.value as unknown as number)} />
+            </Field>
+            <Field label="Reward">
+              <select className="input" value={s.loyalty_kind} onChange={(e) => set("loyalty_kind", e.target.value as Settings["loyalty_kind"])}>
+                <option value="percent">% off</option>
+                <option value="fixed">{cur.code} off</option>
+              </select>
+            </Field>
+            <Field label={s.loyalty_kind === "percent" ? "Percent" : `Amount (${cur.code})`}>
+              <input id="loyalty-value" className="input" type="number" min={0} step="any" value={s.loyalty_value}
+                onChange={(e) => set("loyalty_value", e.target.value as unknown as number)} />
+            </Field>
+            {s.loyalty_kind === "percent" ? (
+              <Field label={`Max (${cur.code})`}>
+                <input className="input" type="number" min={0} step="any" placeholder="No cap" value={s.loyalty_max ?? ""}
+                  onChange={(e) => set("loyalty_max", e.target.value === "" ? null : (e.target.value as unknown as number))} />
+              </Field>
+            ) : <div />}
+          </div>
+          <Field label={`Orders below this don't earn a stamp (${cur.code}, optional)`}>
+            <input className="input" type="number" min={0} step="any" value={s.loyalty_min_order || ""} placeholder="0"
+              onChange={(e) => set("loyalty_min_order", (e.target.value || 0) as unknown as number)} />
+          </Field>
+          <p className="rounded-lg bg-cream px-3 py-2 text-sm">
+            Order {n} gets{" "}
+            <b>{s.loyalty_kind === "percent" ? `${Number(s.loyalty_value)}% off` : `${money(Number(s.loyalty_value) || 0, cur)} off`}</b>
+            , then orders {n + 1}…{2 * n - 1} earn stamps again and order {2 * n} gets the reward, and so on. A reward order can&apos;t also use a promo code.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SummarySettings({ s, set }: { s: Settings; set: <K extends keyof Settings>(k: K, v: Settings[K]) => void }) {
+  const [msg, setMsg] = useState("");
+  async function sendTest() {
+    setMsg("Sending…");
+    const res = await fetch("/api/admin/summary", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const d = await res.json().catch(() => ({}));
+    setMsg(d.sent ? "Sent ✓ — check your inbox" : `Not sent: ${d.reason ?? d.error ?? "unknown error"}`);
+  }
+  return (
+    <div className="card space-y-3 p-4">
+      <div>
+        <div className="font-semibold">📋 Daily summary email</div>
+        <p className="text-sm text-muted">
+          Every night after closing, get orders, sales, cash vs card, expenses, profit and top dishes by email. You can also share any
+          day&apos;s summary on WhatsApp from the Sales page.
+        </p>
+      </div>
+      <Field label="Send to (email, comma-separate for several)">
+        <input id="summary-email" className="input" type="text" inputMode="email" placeholder="owner@example.com" value={s.summary_email}
+          onChange={(e) => set("summary_email", e.target.value)} />
+      </Field>
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <button type="button" className="btn-ghost py-1.5 text-sm" onClick={sendTest} disabled={!s.summary_email.trim()}>Send today&apos;s summary now</button>
+        {msg && <span className={msg.startsWith("Sent") ? "text-ok" : "text-muted"}>{msg}</span>}
+      </div>
+      <p className="text-xs text-muted">Needs a free Resend account: add <code>RESEND_API_KEY</code> and <code>CRON_SECRET</code> in Vercel (see README). Save first, then test.</p>
     </div>
   );
 }

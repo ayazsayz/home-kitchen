@@ -5,6 +5,7 @@ import { money, normaliseOrder, roundMoney } from "@/lib/format";
 import { useShop } from "@/lib/use-currency";
 import { addDays, dateIn, dateTimeFull, dayStartIso, todayIn } from "@/lib/tz";
 import type { Order } from "@/lib/types";
+import DailySummaryCard from "./DailySummaryCard";
 
 const RANGES = [
   { key: "today", label: "Today", days: 0 },
@@ -106,6 +107,8 @@ export default function SalesReport() {
         <button className="btn-ghost text-sm" onClick={exportCsv} disabled={!orders.length}>Export CSV</button>
       </div>
 
+      {ready && <DailySummaryCard cur={cur} tz={tz} />}
+
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <Stat label="Revenue" value={money(stats.revenue, cur)} />
         <Stat label="Orders" value={String(stats.count)} />
@@ -113,7 +116,7 @@ export default function SalesReport() {
         <Stat label="Delivery fees" value={money(stats.fees, cur)} />
         <Stat label="Cash" value={money(stats.cash, cur)} />
         <Stat label="Card" value={money(stats.card, cur)} />
-        <Stat label="Promo discounts" value={money(stats.discounts, cur)} />
+        <Stat label="Discounts" value={money(stats.discounts, cur)} />
       </div>
       <p className="text-xs text-muted">Excludes rejected and unpaid card orders. Includes orders still in progress.</p>
 

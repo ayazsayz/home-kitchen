@@ -2,18 +2,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { money, normalise } from "@/lib/format";
-import { useShopCurrency } from "@/lib/use-currency";
+import { useShop } from "@/lib/use-currency";
+import { dateIn, dayStartIso, todayIn } from "@/lib/tz";
 import type { Category, MenuItem } from "@/lib/types";
 import OptionGroupsEditor from "./OptionGroupsEditor";
 
 type Draft = Omit<MenuItem, "id"> & { id?: string };
 const EMPTY: Draft = {
-  category_id: null, name: "", description: "", price: 0, image_url: "", available: true, sort: 0, option_groups: [],
+  category_id: null, name: "", description: "", price: 0, image_url: "", available: true, sort: 0, option_groups: [], daily_limit: null,
 };
 
 export default function MenuAdmin() {
   const db = useMemo(() => supabaseBrowser(), []);
-  const cur = useShopCurrency();
+  const { cur, tz, ready } = useShop();
+  const [soldToday, setSoldToday] = useState<Record<string, number>>({});
   const [cats, setCats] = useState<Category[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -28,7 +30,24 @@ export default function MenuAdmin() {
     ]);
     setCats(c.data ?? []);
     setItems((i.data ?? []).map((x) => ({ ...normalise(x), option_groups: x.option_groups ?? [] }) as MenuItem));
-  }, [db]);
+    if (!ready) return;
+    // Sold today (for daily limits): orders whose service day is today in the shop's time zone.
+    const today = todayIn(tz);
+    const from = dayStartIso(today, tz);
+    const { data: os } = await db
+      .from("orders")
+      .select("status, created_at, scheduled_for, order_items(menu_item_id, qty)")
+      .or(`created_at.gte.${from},scheduled_for.gte.${from}`)
+      .neq("status", "rejected");
+    const sold: Record<string, number> = {};
+    for (const o of os ?? []) {
+      if (dateIn(o.scheduled_for ?? o.created_at, tz) !== today) continue;
+      for (const it of (o.order_items ?? []) as { menu_item_id: string | null; qty: number }[]) {
+        if (it.menu_item_id) sold[it.menu_item_id] = (sold[it.menu_item_id] ?? 0) + it.qty;
+      }
+    }
+    setSoldToday(sold);
+  }, [db, tz, ready]);
   useEffect(() => {
     load();
   }, [load]);
@@ -88,6 +107,7 @@ export default function MenuAdmin() {
       ...row,
       price: Number(row.price) || 0,
       sort: Number(row.sort) || 0,
+      daily_limit: row.daily_limit === null || (row.daily_limit as unknown) === "" ? null : Math.max(0, Math.round(Number(row.daily_limit))),
       // drop empty choices / groups
       option_groups: row.option_groups
         .map((g) => ({ ...g, name: g.name.trim(), choices: g.choices.filter((c) => c.name.trim()) }))
@@ -162,6 +182,16 @@ export default function MenuAdmin() {
                       {i.description}
                     </div>
                   </button>
+                  {i.daily_limit != null && (
+                    <span
+                      className={`whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${
+                        (soldToday[i.id] ?? 0) >= i.daily_limit ? "bg-red-100 text-red-800" : "bg-cream text-muted"
+                      }`}
+                      title="Sold today / daily limit"
+                    >
+                      {soldToday[i.id] ?? 0}/{i.daily_limit} today
+                    </span>
+                  )}
                   <span className="w-24 text-right">{money(i.price, cur)}</span>
                   <label className="flex items-center gap-1.5 text-sm">
                     <input type="checkbox" className="h-4 w-4 accent-ok" checked={i.available} onChange={() => toggle(i)} />
@@ -220,6 +250,13 @@ export default function MenuAdmin() {
                 <button type="button" className="text-sm text-red-600" onClick={() => setDraft({ ...draft, image_url: "" })}>Remove photo</button>
               </div>
             )}
+            <div>
+              <label className="label" htmlFor="daily-limit">Daily limit (leave empty for no limit)</label>
+              <input id="daily-limit" className="input" type="number" min={0} step={1} placeholder="e.g. 20"
+                value={draft.daily_limit ?? ""}
+                onChange={(e) => setDraft({ ...draft, daily_limit: e.target.value === "" ? null : (e.target.value as unknown as number) })} />
+              <p className="mt-1 text-xs text-muted">How many you can make per day. The menu shows &quot;only N left&quot; and marks it sold out at 0. Resets every day.</p>
+            </div>
             <OptionGroupsEditor value={draft.option_groups} onChange={(option_groups) => setDraft({ ...draft, option_groups })} />
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" className="h-4 w-4 accent-ok" checked={draft.available}

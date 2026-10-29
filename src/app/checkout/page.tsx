@@ -9,7 +9,7 @@ export default async function Checkout() {
   const availability = await getAvailability(settings);
   return (
     <CheckoutClient
-      settings={{ ...settings, card_enabled: cardAvailable(settings), whatsapp_templates: {} }}
+      settings={{ ...settings, card_enabled: cardAvailable(settings), whatsapp_templates: {}, summary_email: "" }}
       availability={availability}
       zones={zones}
       googleMapsKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""}

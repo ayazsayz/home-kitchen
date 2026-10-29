@@ -62,7 +62,7 @@ function receipt(o: Order, s: Settings, qr: string) {
     <table>
       <tr><td>Subtotal</td><td style="text-align:right">${money(o.subtotal, c)}</td></tr>
       ${o.delivery_fee > 0 ? `<tr><td>Delivery</td><td style="text-align:right">${money(o.delivery_fee, c)}</td></tr>` : ""}
-      ${o.discount > 0 ? `<tr><td>Discount${o.promo_code ? ` (${esc(o.promo_code)})` : ""}</td><td style="text-align:right">-${money(o.discount, c)}</td></tr>` : ""}
+      ${o.discount > 0 ? `<tr><td>${o.promo_code === "LOYALTY" ? "Loyalty reward" : `Discount${o.promo_code ? ` (${esc(o.promo_code)})` : ""}`}</td><td style="text-align:right">-${money(o.discount, c)}</td></tr>` : ""}
       <tr><td class="big">TOTAL</td><td class="big" style="text-align:right">${money(o.total, c)}</td></tr>
       ${vat > 0 ? `<tr><td>Incl. VAT ${o.vat_percent}%</td><td style="text-align:right">${money(vat, c)}</td></tr>` : ""}
     </table>

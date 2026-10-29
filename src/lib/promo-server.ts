@@ -13,6 +13,7 @@ export async function checkPromo(
 ): Promise<PromoResult & { code?: string }> {
   const code = cleanCode(rawCode);
   if (!code) return { ok: false, error: "Enter a promo code" };
+  if (code === "LOYALTY") return { ok: false, error: "That code isn't valid" };
   const db = supabaseAdmin();
 
   // ilike without wildcards = case-insensitive exact match (code is already restricted to [A-Z0-9_-])

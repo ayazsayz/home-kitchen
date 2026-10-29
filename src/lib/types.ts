@@ -26,6 +26,14 @@ export type Settings = {
   currency_symbol: string;
   currency_decimals: number;
   expense_categories: string[];
+  // loyalty
+  loyalty_enabled: boolean;
+  loyalty_every: number;
+  loyalty_kind: "percent" | "fixed";
+  loyalty_value: number;
+  loyalty_max: number | null;
+  loyalty_min_order: number;
+  summary_email: string;
   delivery_fee: number;
   min_order: number;
   vat_percent: number;
@@ -103,6 +111,7 @@ export type MenuItem = {
   available: boolean;
   sort: number;
   option_groups: OptionGroup[];
+  daily_limit: number | null;
 };
 
 /** What the customer picked, as stored on the order line. */
