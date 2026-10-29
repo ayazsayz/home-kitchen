@@ -1,3 +1,5 @@
+import { LOCALE } from "./i18n";
+import type { Lang } from "./types";
 import type { Settings, TimeRange, WeeklyHours } from "./types";
 
 import { DEFAULT_TZ, addDays, zoned, zonedInstant } from "./tz";
@@ -74,17 +76,20 @@ export type Slot = {
   full: boolean;
 };
 
-export const fmtTime = (d: Date, tz = DEFAULT_TZ) => d.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
-export function fmtDay(d: Date, tz = DEFAULT_TZ, now = new Date()) {
+const DAY_WORDS: Record<Lang, [string, string]> = { en: ["Today", "Tomorrow"], ar: ["اليوم", "غداً"], ur: ["آج", "کل"] };
+
+export const fmtTime = (d: Date, tz = DEFAULT_TZ, lang: Lang = "en") =>
+  d.toLocaleTimeString(LOCALE[lang], { timeZone: tz, hour: "numeric", minute: "2-digit" });
+export function fmtDay(d: Date, tz = DEFAULT_TZ, now = new Date(), lang: Lang = "en") {
   const a = zoned(d, tz).ymd;
   const today = zoned(now, tz).ymd;
-  if (a === today) return "Today";
-  if (a === addDays(today, 1)) return "Tomorrow";
-  return d.toLocaleDateString("en-GB", { timeZone: tz, weekday: "short", day: "numeric", month: "short" });
+  if (a === today) return DAY_WORDS[lang][0];
+  if (a === addDays(today, 1)) return DAY_WORDS[lang][1];
+  return d.toLocaleDateString(lang === "en" ? "en-GB" : LOCALE[lang], { timeZone: tz, weekday: "short", day: "numeric", month: "short" });
 }
-/** "Today, 7:30 PM" in the shop's time zone. */
-export const fmtWhen = (iso: string, tz = DEFAULT_TZ, now = new Date()) =>
-  `${fmtDay(new Date(iso), tz, now)}, ${fmtTime(new Date(iso), tz)}`;
+/** "Today, 7:30 PM" in the shop's time zone (and the customer's language). */
+export const fmtWhen = (iso: string, tz = DEFAULT_TZ, now = new Date(), lang: Lang = "en") =>
+  `${fmtDay(new Date(iso), tz, now, lang)}${lang === "en" ? "," : "،"} ${fmtTime(new Date(iso), tz, lang)}`;
 
 /**
  * Bookable delivery/pickup slots (labels in the shop's time zone). A slot is offered if it starts at least `lead_minutes`

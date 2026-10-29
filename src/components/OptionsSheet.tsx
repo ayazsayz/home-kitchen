@@ -3,6 +3,8 @@ import { useMemo, useState } from "react";
 import { money, type Currency } from "@/lib/format";
 import { resolveOptions } from "@/lib/options";
 import type { MenuItem } from "@/lib/types";
+import { localize } from "@/lib/i18n";
+import { useI18n } from "./I18n";
 
 /** Bottom sheet where the customer picks options for a dish. */
 export default function OptionsSheet({
@@ -29,6 +31,7 @@ export default function OptionsSheet({
     return init;
   });
   const [qty, setQty] = useState(1);
+  const { t, lang } = useI18n();
   const [touched, setTouched] = useState(false);
 
   const allIds = useMemo(() => Object.values(chosen).flat(), [chosen]);
@@ -57,7 +60,7 @@ export default function OptionsSheet({
         className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-paper sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
-        aria-label={item.name}
+        aria-label={localize(item.name, item.name_i18n, lang)}
       >
         {item.image_url && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -65,8 +68,8 @@ export default function OptionsSheet({
         )}
         <div className="space-y-5 p-5">
           <div>
-            <h2 className="text-xl font-bold">{item.name}</h2>
-            {item.description && <p className="text-muted">{item.description}</p>}
+            <h2 className="text-xl font-bold">{localize(item.name, item.name_i18n, lang)}</h2>
+            {item.description && <p className="text-muted">{localize(item.description, item.description_i18n, lang)}</p>}
             <p className="mt-1 font-medium">{money(item.price, currency)}</p>
           </div>
 
@@ -78,8 +81,8 @@ export default function OptionsSheet({
                 <legend className="mb-2 flex w-full items-center justify-between">
                   <span className="font-semibold">{g.name}</span>
                   <span className={`text-xs ${missing ? "font-semibold text-red-700" : "text-muted"}`}>
-                    {g.required ? "Required" : "Optional"}
-                    {g.max > 1 ? ` · up to ${g.max}` : ""}
+                    {g.required ? t("required") : t("optional")}
+                    {g.max > 1 ? ` · ${t("upTo", { n: g.max })}` : ""}
                   </span>
                 </legend>
                 <div className="space-y-1.5">
@@ -104,7 +107,7 @@ export default function OptionsSheet({
                         />
                         <span className="flex-1">{c.name}</span>
                         {c.available === false ? (
-                          <span className="text-sm text-muted">Sold out</span>
+                          <span className="text-sm text-muted">{t("soldOut")}</span>
                         ) : c.price ? (
                           <span className="text-sm text-muted">+{money(c.price, currency)}</span>
                         ) : null}
@@ -125,7 +128,7 @@ export default function OptionsSheet({
               <button className="px-3 py-2 text-lg disabled:opacity-30" disabled={maxQty !== undefined && qty >= maxQty} onClick={() => setQty(qty + 1)} aria-label="Increase">+</button>
             </div>
             <button className="btn flex-1 py-3" onClick={add} disabled={maxQty !== undefined && (maxQty < 1 || qty > maxQty)}>
-              Add · {money(unit * qty, currency)}
+              {t("addPrice", { price: money(unit * qty, currency) })}
             </button>
           </div>
         </div>

@@ -19,6 +19,7 @@ export type DailySummary = {
   profit: number;
   top: { name: string; qty: number }[];
   lastWeek: { orders: number; revenue: number }; // same weekday a week earlier
+  reviews: { avg: number; count: number; low: number }; // ratings left that day
 };
 
 async function totalsFor(day: string, tz: string) {
@@ -41,6 +42,8 @@ export async function buildSummary(day: string, s: Settings): Promise<DailySumma
     totalsFor(addDays(day, -7), tz),
     db.from("expenses").select("amount").eq("spent_on", day),
   ]);
+  const { data: rev } = await db.from("reviews").select("rating").gte("created_at", dayStartIso(day, tz)).lt("created_at", dayEndIso(day, tz));
+  const ratings = (rev ?? []).map((x) => Number(x.rating));
   const ok = rows.filter((o) => o.status !== "rejected");
   const revenue = r(ok.reduce((a, o) => a + Number(o.total), 0));
   const card = r(ok.filter((o) => o.payment_status === "paid").reduce((a, o) => a + Number(o.total), 0));
@@ -78,6 +81,11 @@ export async function buildSummary(day: string, s: Settings): Promise<DailySumma
     profit: r(revenue - expenses),
     top: [...dishes.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, qty]) => ({ name, qty })),
     lastWeek: { orders: prevOk.length, revenue: r(prevOk.reduce((a, o) => a + Number(o.total), 0)) },
+    reviews: {
+      count: ratings.length,
+      avg: ratings.length ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10 : 0,
+      low: ratings.filter((x) => x <= 3).length,
+    },
   };
 }
 
@@ -112,6 +120,7 @@ export function summaryText(sum: DailySummary, s: Settings) {
   if (sum.orders) lines.push(`📈 Average order: ${money(sum.avgOrder, c)}`);
   if (sum.newCustomers) lines.push(`🙋 New customers: ${sum.newCustomers}`);
   if (sum.rejected) lines.push(`❌ Rejected: ${sum.rejected}`);
+  if (sum.reviews?.count) lines.push(`⭐ Rating: ${sum.reviews.avg.toFixed(1)} from ${sum.reviews.count} review${sum.reviews.count === 1 ? "" : "s"}${sum.reviews.low ? ` (${sum.reviews.low} low)` : ""}`);
   if (sum.top.length) {
     lines.push("", "🔥 Top dishes:");
     sum.top.forEach((t, i) => lines.push(`${i + 1}. ${t.name} × ${t.qty}`));
@@ -142,6 +151,7 @@ export function summaryHtml(sum: DailySummary, s: Settings) {
         ${sum.orders ? row("Average order", money(sum.avgOrder, c)) : ""}
         ${sum.newCustomers ? row("New customers", String(sum.newCustomers)) : ""}
         ${sum.rejected ? row("Rejected", String(sum.rejected)) : ""}
+        ${sum.reviews?.count ? row("Rating", `${sum.reviews.avg.toFixed(1)} ★ (${sum.reviews.count} review${sum.reviews.count === 1 ? "" : "s"}${sum.reviews.low ? `, ${sum.reviews.low} low` : ""})`) : ""}
       </table>
       ${sum.top.length ? `<div style="margin-top:12px;font-weight:600">Top dishes</div><ol style="margin:6px 0 0;padding-left:20px">${sum.top.map((t) => `<li>${esc(t.name)} × ${t.qty}</li>`).join("")}</ol>` : ""}
     </div>

@@ -6,6 +6,7 @@ import { useShop } from "@/lib/use-currency";
 import { addDays, dateIn, dateTimeFull, dayStartIso, todayIn } from "@/lib/tz";
 import type { Order } from "@/lib/types";
 import DailySummaryCard from "./DailySummaryCard";
+import { dishProfit } from "@/lib/profit";
 
 const RANGES = [
   { key: "today", label: "Today", days: 0 },
@@ -20,6 +21,12 @@ export default function SalesReport() {
   const [range, setRange] = useState<(typeof RANGES)[number]>(RANGES[0]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [costs, setCosts] = useState<Record<string, number | null>>({});
+  useEffect(() => {
+    db.from("menu_items").select("id, cost").then(({ data }) =>
+      setCosts(Object.fromEntries((data ?? []).map((m) => [m.id, m.cost == null ? null : Number(m.cost)]))),
+    );
+  }, [db]);
 
   useEffect(() => {
     if (!ready) return; // wait for the shop's time zone so "today" is the shop's today
@@ -63,6 +70,8 @@ export default function SalesReport() {
       days: [...days.entries()].sort((a, b) => b[0].localeCompare(a[0])),
     };
   }, [orders, tz]);
+
+  const profit = useMemo(() => dishProfit(orders.flatMap((o) => o.order_items ?? []), costs), [orders, costs]);
 
   function exportCsv() {
     const head = ["order_no", "date", "status", "type", "customer", "phone", "items", "area", "payment", "scheduled_for", "promo_code", "discount", "subtotal", "delivery_fee", "total"];
@@ -152,6 +161,49 @@ export default function SalesReport() {
                 </li>
               ))}
             </ul>
+          </section>
+          <section className="card overflow-x-auto p-4 lg:col-span-2" data-testid="dish-profit">
+            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-semibold">Dish profit</h2>
+              {profit.margin !== null && (
+                <span className="text-sm">Food profit <b>{money(profit.totalProfit, cur)}</b> · margin <b>{profit.margin}%</b></span>
+              )}
+            </div>
+            {profit.rows.length === 0 ? (
+              <p className="text-sm text-muted">No sales yet.</p>
+            ) : (
+              <table className="w-full min-w-[32rem] text-sm">
+                <thead className="text-left text-muted">
+                  <tr>
+                    <th className="py-1 font-medium">Dish</th>
+                    <th className="py-1 text-right font-medium">Sold</th>
+                    <th className="py-1 text-right font-medium">Sales</th>
+                    <th className="py-1 text-right font-medium">Cost</th>
+                    <th className="py-1 text-right font-medium">Profit</th>
+                    <th className="py-1 text-right font-medium">Margin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {profit.rows.map((r) => (
+                    <tr key={r.name} className="border-t border-line">
+                      <td className="py-1.5">{r.name}</td>
+                      <td className="py-1.5 text-right">{r.qty}</td>
+                      <td className="py-1.5 text-right">{money(r.revenue, cur)}</td>
+                      <td className="py-1.5 text-right text-muted">{r.margin === null ? "—" : money(r.cost, cur)}</td>
+                      <td className="py-1.5 text-right font-medium">{r.margin === null ? "—" : money(r.profit, cur)}</td>
+                      <td className={`py-1.5 text-right ${r.margin !== null && r.margin < 30 ? "font-semibold text-red-700" : ""}`}>
+                        {r.margin === null ? <span className="text-xs text-muted">no cost set</span> : `${r.margin}%${r.missingCost ? "*" : ""}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <p className="mt-2 text-xs text-muted">
+              Estimate from the &quot;cost to make&quot; on each dish (Menu → edit dish), before discounts and delivery fees.
+              {profit.missing > 0 && <> {profit.missing} dish{profit.missing === 1 ? " has" : "es have"} no cost set{profit.rows.some((r) => r.missingCost && r.margin !== null) ? " for some orders (*)" : ""}.</>}
+              {" "}For real profit including rent, gas and packaging see <a href="/admin/expenses" className="text-brand">Expenses</a>.
+            </p>
           </section>
         </div>
       )}

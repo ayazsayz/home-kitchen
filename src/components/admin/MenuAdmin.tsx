@@ -4,12 +4,14 @@ import { supabaseBrowser } from "@/lib/supabase";
 import { money, normalise } from "@/lib/format";
 import { useShop } from "@/lib/use-currency";
 import { dateIn, dayStartIso, todayIn } from "@/lib/tz";
-import type { Category, MenuItem } from "@/lib/types";
+import type { Category, I18nText, Lang, MenuItem } from "@/lib/types";
+import { LANGS } from "@/lib/i18n";
 import OptionGroupsEditor from "./OptionGroupsEditor";
 
 type Draft = Omit<MenuItem, "id"> & { id?: string };
 const EMPTY: Draft = {
   category_id: null, name: "", description: "", price: 0, image_url: "", available: true, sort: 0, option_groups: [], daily_limit: null,
+  cost: null, name_i18n: {}, description_i18n: {},
 };
 
 export default function MenuAdmin() {
@@ -22,12 +24,15 @@ export default function MenuAdmin() {
   const [newCat, setNewCat] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [langs, setLangs] = useState<Lang[]>([]); // extra customer languages turned on in Settings
 
   const load = useCallback(async () => {
-    const [c, i] = await Promise.all([
+    const [c, i, st] = await Promise.all([
       db.from("categories").select("*").order("sort"),
       db.from("menu_items").select("*").order("sort"),
+      db.from("settings").select("languages").eq("id", 1).single(),
     ]);
+    setLangs(((st.data?.languages ?? []) as Lang[]).filter((l) => l === "ar" || l === "ur"));
     setCats(c.data ?? []);
     setItems((i.data ?? []).map((x) => ({ ...normalise(x), option_groups: x.option_groups ?? [] }) as MenuItem));
     if (!ready) return;
@@ -61,7 +66,12 @@ export default function MenuAdmin() {
   async function renameCategory(c: Category) {
     const name = prompt("Category name", c.name);
     if (!name?.trim()) return;
-    await db.from("categories").update({ name: name.trim() }).eq("id", c.id);
+    const name_i18n: I18nText = { ...(c.name_i18n ?? {}) };
+    for (const l of langs) {
+      const v = prompt(`Category name in ${LANGS.find((x) => x.lang === l)?.label} (optional)`, name_i18n[l] ?? "");
+      if (v !== null) name_i18n[l] = v.trim();
+    }
+    await db.from("categories").update({ name: name.trim(), name_i18n }).eq("id", c.id);
     load();
   }
   async function deleteCategory(c: Category) {
@@ -106,6 +116,7 @@ export default function MenuAdmin() {
     const payload = {
       ...row,
       price: Number(row.price) || 0,
+      cost: row.cost === null || row.cost === undefined || (row.cost as unknown) === "" ? null : Math.max(0, Number(row.cost) || 0),
       sort: Number(row.sort) || 0,
       daily_limit: row.daily_limit === null || (row.daily_limit as unknown) === "" ? null : Math.max(0, Math.round(Number(row.daily_limit))),
       // drop empty choices / groups
@@ -192,7 +203,14 @@ export default function MenuAdmin() {
                       {soldToday[i.id] ?? 0}/{i.daily_limit} today
                     </span>
                   )}
-                  <span className="w-24 text-right">{money(i.price, cur)}</span>
+                  <span className="w-24 text-right">
+                    {money(i.price, cur)}
+                    {i.cost != null && i.price > 0 && (
+                      <span className={`block text-xs ${margin(i.price, i.cost) < 30 ? "text-red-700" : "text-muted"}`} title="Profit margin">
+                        {margin(i.price, i.cost)}% margin
+                      </span>
+                    )}
+                  </span>
                   <label className="flex items-center gap-1.5 text-sm">
                     <input type="checkbox" className="h-4 w-4 accent-ok" checked={i.available} onChange={() => toggle(i)} />
                     {i.available ? "Available" : "Sold out"}
@@ -216,13 +234,36 @@ export default function MenuAdmin() {
               <label className="label">Description</label>
               <input className="input" value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-1">
-                <label className="label">Price</label>
-                <input className="input" type="number" min={0} step="any" required value={draft.price}
+            {langs.map((l) => {
+              const label = LANGS.find((x) => x.lang === l)?.label;
+              return (
+                <div key={l} className="grid grid-cols-1 gap-2 rounded-xl bg-cream p-3 sm:grid-cols-2" dir="rtl" lang={l}>
+                  <div>
+                    <label className="label" htmlFor={`name-${l}`}>Name · {label}</label>
+                    <input id={`name-${l}`} className="input" value={draft.name_i18n?.[l] ?? ""}
+                      onChange={(e) => setDraft({ ...draft, name_i18n: { ...draft.name_i18n, [l]: e.target.value } })} />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor={`desc-${l}`}>Description · {label}</label>
+                    <input id={`desc-${l}`} className="input" value={draft.description_i18n?.[l] ?? ""}
+                      onChange={(e) => setDraft({ ...draft, description_i18n: { ...draft.description_i18n, [l]: e.target.value } })} />
+                  </div>
+                </div>
+              );
+            })}
+            {langs.length > 0 && <p className="-mt-1 text-xs text-muted">Leave empty to show the English text.</p>}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div>
+                <label className="label" htmlFor="dish-price">Price</label>
+                <input id="dish-price" className="input" type="number" min={0} step="any" required value={draft.price}
                   onChange={(e) => setDraft({ ...draft, price: e.target.value as unknown as number })} />
               </div>
-              <div className="col-span-2">
+              <div>
+                <label className="label" htmlFor="dish-cost">Cost to make</label>
+                <input id="dish-cost" className="input" type="number" min={0} step="any" placeholder="optional" value={draft.cost ?? ""}
+                  onChange={(e) => setDraft({ ...draft, cost: e.target.value === "" ? null : (e.target.value as unknown as number) })} />
+              </div>
+              <div className="col-span-2 sm:col-span-1">
                 <label className="label">Category</label>
                 <select className="input" value={draft.category_id ?? ""}
                   onChange={(e) => setDraft({ ...draft, category_id: e.target.value || null })}>
@@ -231,6 +272,12 @@ export default function MenuAdmin() {
                 </select>
               </div>
             </div>
+            {draft.cost != null && (draft.cost as unknown) !== "" && Number(draft.price) > 0 && (
+              <p className="-mt-1 text-sm" data-testid="margin-hint">
+                Profit per dish: <b>{money(Number(draft.price) - Number(draft.cost), cur)}</b> · margin <b>{margin(Number(draft.price), Number(draft.cost))}%</b>
+                <span className="text-muted"> (base price; options not included)</span>
+              </p>
+            )}
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="label">Sort order</label>
@@ -276,3 +323,6 @@ export default function MenuAdmin() {
     </div>
   );
 }
+
+/** Profit margin %, e.g. price 30, cost 12 → 60. */
+const margin = (price: number, cost: number) => (price > 0 ? Math.round(((price - cost) / price) * 100) : 0);

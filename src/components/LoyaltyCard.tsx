@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { loyaltyText, type LoyaltyStatus } from "@/lib/loyalty";
 import type { Currency } from "@/lib/format";
 import Stamps from "./Stamps";
+import { useI18n } from "./I18n";
 
 export { Stamps, loyaltyText };
 
@@ -46,15 +47,16 @@ export default function LoyaltyCard({ currency }: { currency: Currency }) {
     } catch {}
   }, []);
   const s = useLoyalty(phone, 0);
+  const { t, lang } = useI18n();
   if (!s) return null;
   return (
     <div className="card mt-4 space-y-2 border-brand/30 p-3" data-testid="loyalty-card">
       <div className="flex items-center justify-between text-sm">
-        <b>⭐ Your stamp card</b>
+        <b>{t("yourStampCard")}</b>
         <span className="text-muted">{s.stamps}/{s.every - 1}</span>
       </div>
       <Stamps s={s} />
-      <p className="text-sm">{loyaltyText(s, currency)}</p>
+      <p className="text-sm">{loyaltyText(s, currency, lang)}</p>
     </div>
   );
 }

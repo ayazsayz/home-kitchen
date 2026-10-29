@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useI18n } from "./I18n";
 
 type BIPEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
 
@@ -12,6 +13,7 @@ export default function InstallPrompt({ name, kitchen = false }: { name: string;
   const [evt, setEvt] = useState<BIPEvent | null>(null);
   const [ios, setIos] = useState(false);
   const [hidden, setHidden] = useState(true);
+  const { t } = useI18n();
 
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -54,14 +56,16 @@ export default function InstallPrompt({ name, kitchen = false }: { name: string;
     <div className="card mt-4 flex items-center gap-3 p-3 text-sm" data-testid="install-prompt">
       <span className="text-2xl" aria-hidden>📲</span>
       <div className="min-w-0 flex-1">
-        <div className="font-semibold">{kitchen ? "Install the kitchen screen" : `Get the ${name} app`}</div>
+        <div className="font-semibold">{kitchen ? "Install the kitchen screen" : t("getApp", { name })}</div>
         <div className="text-muted">
-          {ios ? (
+          {ios && kitchen ? (
             <>Tap <b>Share</b> <span aria-hidden>⬆️</span> then <b>Add to Home Screen</b>.</>
+          ) : ios ? (
+            t("iosTip")
           ) : kitchen ? (
             "Opens full-screen, like an app."
           ) : (
-            "Order faster from your home screen."
+            t("orderFaster")
           )}
         </div>
       </div>
@@ -75,7 +79,7 @@ export default function InstallPrompt({ name, kitchen = false }: { name: string;
             setHidden(true);
           }}
         >
-          Install
+          {kitchen ? "Install" : t("install")}
         </button>
       )}
       <button className="px-1 text-muted" onClick={dismiss} aria-label="Dismiss">✕</button>

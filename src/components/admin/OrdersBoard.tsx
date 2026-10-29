@@ -9,6 +9,8 @@ import { fmtWhen } from "@/lib/schedule";
 import { mapsLink } from "@/lib/maps";
 import InstallPrompt from "@/components/InstallPrompt";
 import type { Role } from "@/lib/roles";
+import { LOW_RATING } from "@/lib/reviews";
+import Link from "next/link";
 import { STATUS_LABEL, type Order, type OrderStatus, type Settings } from "@/lib/types";
 
 const PRINTER_KEY = "hk_printer_v1";
@@ -38,6 +40,8 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
   const [live, setLive] = useState(false);
   const [waAuto, setWaAuto] = useState(false);
   const [drivers, setDrivers] = useState<{ user_id: string; name: string }[]>([]);
+  const [lowReviews, setLowReviews] = useState<{ id: string; rating: number; comment: string; customer_name: string; orders: { order_no: number } | null }[]>([]);
+  const canManage = role === "owner" || role === "manager";
   useEffect(() => {
     if (role !== "owner") return; // only the owner can read the staff list
     db.from("staff").select("user_id, name").eq("role", "driver").eq("active", true).order("name")
@@ -104,6 +108,9 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
   const load = useCallback(
     async (opts?: { notify?: boolean }) => {
       const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
+      db.from("reviews").select("id, rating, comment, customer_name, orders(order_no)").lte("rating", LOW_RATING).eq("seen", false)
+        .order("created_at", { ascending: false }).limit(5)
+        .then(({ data }) => setLowReviews((data ?? []) as unknown as typeof lowReviews));
       const [{ data: rows }, { data: st }] = await Promise.all([
         db
           .from("orders")
@@ -205,6 +212,26 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
           <button className="btn-ghost text-sm" onClick={enableSound}>🔔 Turn on new-order sound</button>
         )}
       </div>
+
+      {lowReviews.length > 0 && (
+        <div className="card space-y-1 border-red-300 bg-red-50 p-3 text-sm text-red-900" data-testid="low-rating-banner">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <b>⚠️ {lowReviews.length === 1 ? "A customer" : `${lowReviews.length} customers`} rated {LOW_RATING}★ or less</b>
+            {canManage && <Link href="/admin/reviews" className="font-semibold underline">Open reviews</Link>}
+          </div>
+          {lowReviews.map((r) => (
+            <div key={r.id}>
+              {"★".repeat(r.rating)} · #{r.orders?.order_no ?? "—"} {r.customer_name}{r.comment ? `: “${r.comment}”` : ""}
+              {canManage && (
+                <button className="ms-2 text-xs underline" onClick={async () => {
+                  setLowReviews((cur) => cur.filter((x) => x.id !== r.id));
+                  await db.from("reviews").update({ seen: true }).eq("id", r.id);
+                }}>Dismiss</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <InstallPrompt name={settings?.name ?? "Kitchen"} kitchen />
       <div className="card flex flex-wrap items-center gap-3 p-3 text-sm">

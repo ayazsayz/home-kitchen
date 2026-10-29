@@ -1,3 +1,5 @@
+import { t } from "./i18n";
+import type { Lang } from "./types";
 import { decimalsOf, money, roundMoney, type Currency } from "./format";
 import type { PromoCode } from "./types";
 
@@ -6,10 +8,11 @@ export type PromoResult = { ok: true; discount: number; label: string } | { ok: 
 /** Only letters, digits, dash and underscore; upper-case. */
 export const cleanCode = (raw: string) => (raw ?? "").toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 30);
 
-export function promoLabel(p: Pick<PromoCode, "kind" | "value" | "max_discount">, currency?: string | Currency) {
-  if (p.kind === "free_delivery") return "Free delivery";
-  if (p.kind === "fixed") return `${money(p.value, currency)} off`;
-  return `${Number(p.value)}% off${p.max_discount ? ` (up to ${money(p.max_discount, currency)})` : ""}`;
+export function promoLabel(p: Pick<PromoCode, "kind" | "value" | "max_discount">, currency?: string | Currency, lang: Lang = "en") {
+  if (p.kind === "free_delivery") return t(lang, "freeDelivery");
+  if (p.kind === "fixed") return t(lang, "amountOff", { amount: money(p.value, currency) });
+  const n = Number(p.value);
+  return p.max_discount ? t(lang, "pctOffMax", { n, max: money(p.max_discount, currency) }) : t(lang, "pctOff", { n });
 }
 
 /**

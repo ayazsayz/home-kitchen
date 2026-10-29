@@ -1,12 +1,14 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useI18n } from "./I18n";
 
 /** Retry card payment, or switch an unpaid card order to cash. */
 export default function PaymentActions({ orderId, canPayCard }: { orderId: string; canPayCard: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState<"" | "card" | "cod">("");
   const [error, setError] = useState("");
+  const { t } = useI18n();
 
   async function go(method: "card" | "cod") {
     setBusy(method);
@@ -36,11 +38,11 @@ export default function PaymentActions({ orderId, canPayCard }: { orderId: strin
       <div className="flex flex-wrap gap-2">
         {canPayCard && (
           <button className="btn flex-1" disabled={!!busy} onClick={() => go("card")}>
-            {busy === "card" ? "Opening…" : "Pay by card"}
+            {busy === "card" ? t("opening") : t("payByCard")}
           </button>
         )}
         <button className="btn-ghost flex-1" disabled={!!busy} onClick={() => go("cod")}>
-          {busy === "cod" ? "Sending…" : "Pay cash instead"}
+          {busy === "cod" ? t("sending") : t("payCash")}
         </button>
       </div>
       {error && <p className="text-sm text-red-700">{error}</p>}
