@@ -7,17 +7,22 @@ import type { Category, MenuItem, Settings } from "@/lib/types";
 import type { Availability } from "@/lib/data";
 import { fmtWhen } from "@/lib/schedule";
 import OptionsSheet from "./OptionsSheet";
+import LoyaltyCard from "./LoyaltyCard";
+import InstallPrompt from "./InstallPrompt";
 
 export default function MenuClient({
   settings,
   availability,
   categories,
   items,
+  remaining = {},
 }: {
   settings: Settings;
   availability: Availability;
   categories: Category[];
   items: MenuItem[];
+  /** dishes with a daily limit → how many are left today */
+  remaining?: Record<string, number>;
 }) {
   const cart = useCart();
   const cur = currencyOf(settings);
@@ -60,6 +65,8 @@ export default function MenuClient({
             )}
           </div>
         )}
+        {settings.loyalty_enabled && <LoyaltyCard currency={cur} />}
+        <InstallPrompt name={settings.name} />
         <input className="input mt-4" placeholder="Search the menu" value={q} onChange={(e) => setQ(e.target.value)} />
       </header>
 
@@ -82,6 +89,9 @@ export default function MenuClient({
                 const withOpts = hasOptions(i);
                 const line = withOpts ? undefined : simpleLine(i);
                 const inCart = cart.qtyOfItem(i.id);
+                const left = remaining[i.id]; // undefined = no daily limit
+                const soldOutToday = left === 0;
+                const canAddMore = left === undefined || inCart < left;
                 return (
                   <li key={i.id} className={`card flex gap-3 p-3 ${!i.available ? "opacity-50" : ""}`}>
                     {i.image_url ? (
@@ -95,16 +105,21 @@ export default function MenuClient({
                         {money(i.price, cur)}
                         {withOpts && <span className="ml-2 text-xs font-normal text-muted">Options available</span>}
                       </div>
+                      {left !== undefined && left > 0 && left <= 5 && i.available && (
+                        <div className="mt-0.5 text-xs font-semibold text-brand-dark">Only {left} left today</div>
+                      )}
                     </div>
                     <div className="flex flex-col items-end justify-center gap-1">
                       {!i.available ? (
                         <span className="text-sm text-muted">Sold out</span>
+                      ) : soldOutToday && !line ? (
+                        <span className="text-right text-sm text-muted">Sold out today</span>
                       ) : line ? (
-                        <Stepper qty={line.qty} onChange={(n) => cart.setQty(line.key, n)} />
+                        <Stepper qty={line.qty} max={left} onChange={(n) => cart.setQty(line.key, left === undefined ? n : Math.min(n, left))} />
                       ) : (
                         <button
                           className="btn px-3 py-1.5"
-                          disabled={!availability.canOrder}
+                          disabled={!availability.canOrder || !canAddMore}
                           onClick={() =>
                             withOpts
                               ? setPicking(i)
@@ -129,6 +144,7 @@ export default function MenuClient({
         <OptionsSheet
           item={picking}
           currency={cur}
+          maxQty={remaining[picking.id] === undefined ? undefined : Math.max(0, remaining[picking.id] - cart.qtyOfItem(picking.id))}
           onClose={() => setPicking(null)}
           onAdd={(choiceIds, labels, unit, qty) => {
             cart.add({ id: picking.id, name: picking.name, price: unit, choiceIds, optionLabels: labels }, qty);
@@ -151,12 +167,12 @@ export default function MenuClient({
   );
 }
 
-export function Stepper({ qty, onChange }: { qty: number; onChange: (n: number) => void }) {
+export function Stepper({ qty, onChange, max }: { qty: number; onChange: (n: number) => void; max?: number }) {
   return (
     <div className="flex items-center overflow-hidden rounded-xl border border-line">
       <button className="px-3 py-1.5 text-lg" onClick={() => onChange(qty - 1)} aria-label="Decrease">−</button>
       <span className="w-6 text-center font-semibold">{qty}</span>
-      <button className="px-3 py-1.5 text-lg" onClick={() => onChange(qty + 1)} aria-label="Increase">+</button>
+      <button className="px-3 py-1.5 text-lg disabled:opacity-30" disabled={max !== undefined && qty >= max} onClick={() => onChange(qty + 1)} aria-label="Increase">+</button>
     </div>
   );
 }

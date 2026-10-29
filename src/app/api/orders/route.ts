@@ -5,6 +5,10 @@ import { normalisePhone, validPhone } from "@/lib/region";
 import { resolveOptions } from "@/lib/options";
 import { cardAvailable, startPayment } from "@/lib/payments/service";
 import { checkPromo } from "@/lib/promo-server";
+import { loyaltyStatus } from "@/lib/loyalty-server";
+import { LOYALTY_CODE, rewardDiscount } from "@/lib/loyalty";
+import { remainingFor, soldByDay } from "@/lib/stock";
+import { dateIn, todayIn } from "@/lib/tz";
 import { getAvailability } from "@/lib/data";
 import { withSettingDefaults } from "@/lib/settings";
 import { slotKey } from "@/lib/schedule";
@@ -110,7 +114,7 @@ export async function POST(req: Request) {
   const ids = [...new Set(lines.map((l) => l.id))];
   const { data: menu, error: mErr } = await db
     .from("menu_items")
-    .select("id, name, price, available, option_groups")
+    .select("id, name, price, available, option_groups, daily_limit")
     .in("id", ids);
   if (mErr) return bad("Could not load menu", 500);
 
@@ -136,15 +140,45 @@ export async function POST(req: Request) {
     });
   }
 
+  // ----- daily stock limits (for the day the order will be cooked) -----
+  const limited = (menu ?? []).filter((m) => m.daily_limit != null);
+  if (limited.length) {
+    const day = scheduledFor ? dateIn(scheduledFor, settings.timezone) : todayIn(settings.timezone);
+    const left = remainingFor(limited, await soldByDay(settings.timezone, settings.days_ahead + 1), day);
+    const wanted: Record<string, number> = {};
+    for (const l of lines) wanted[l.id] = (wanted[l.id] ?? 0) + l.qty;
+    for (const m of limited) {
+      const want = wanted[m.id] ?? 0;
+      if (want > left[m.id]) {
+        const when = scheduledFor ? "for that day" : "today";
+        return NextResponse.json(
+          { error: left[m.id] === 0 ? `${m.name} is sold out ${when}.` : `Only ${left[m.id]} × ${m.name} left ${when}. Please reduce the quantity.`, code: "stock" },
+          { status: 409 },
+        );
+      }
+    }
+  }
+
   const subtotal = round(orderItems.reduce((s, i) => s + i.line_total, 0));
   if (minOrder > 0 && subtotal < minOrder) {
     return bad(`Minimum order${zoneName ? ` for ${zoneName}` : ""} is ${money(minOrder, cur)}`);
   }
 
-  // ----- promo code -----
+  // ----- loyalty reward (automatic) or promo code — not both -----
   let discount = 0;
   let promoCode: string | null = null;
-  if (body.promo_code && String(body.promo_code).trim()) {
+  const loyalty = await loyaltyStatus(phone, settings, cur);
+  const reward = loyalty.due ? rewardDiscount(settings, subtotal, cur) : 0;
+  if (reward > 0) {
+    if (body.promo_code && String(body.promo_code).trim()) {
+      return NextResponse.json(
+        { error: `Your loyalty reward (${loyalty.label}) is applied to this order, so a promo code can't be added.`, code: "promo_invalid" },
+        { status: 400 },
+      );
+    }
+    discount = Math.min(reward, round(subtotal + fee));
+    promoCode = LOYALTY_CODE;
+  } else if (body.promo_code && String(body.promo_code).trim()) {
     const promo = await checkPromo(String(body.promo_code), { subtotal, deliveryFee: fee, isDelivery: type === "delivery", phone }, cur);
     if (!promo.ok) return NextResponse.json({ error: promo.error, code: "promo_invalid" }, { status: 400 });
     discount = Math.min(promo.discount, round(subtotal + fee));

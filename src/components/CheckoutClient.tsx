@@ -11,6 +11,8 @@ import type { Availability } from "@/lib/data";
 import type { DeliveryZone, Settings } from "@/lib/types";
 import type { LatLng } from "./MapPicker";
 import { Stepper } from "./MenuClient";
+import { Stamps, loyaltyText, useLoyalty } from "./LoyaltyCard";
+import { rewardDiscount } from "@/lib/loyalty";
 
 const MapPicker = dynamic(() => import("./MapPicker"), {
   ssr: false,
@@ -76,8 +78,11 @@ export default function CheckoutClient({
   const zone = zones.find((z) => z.id === form.zoneId);
   const fee = type !== "delivery" ? 0 : useZones ? (zone?.fee ?? 0) : settings.delivery_fee;
   const minOrder = useZones && zone?.min_order != null ? zone.min_order : settings.min_order;
-  const discount = promo ? Math.min(promo.discount, cart.subtotal + fee) : 0;
   const c = currencyOf(settings);
+  // Loyalty: if this order is the reward order, it's applied automatically (and replaces any promo code).
+  const loyalty = useLoyalty(settings.loyalty_enabled ? form.phone : "");
+  const reward = loyalty?.due ? rewardDiscount(settings, cart.subtotal, c) : 0;
+  const discount = reward > 0 ? Math.min(reward, cart.subtotal + fee) : promo ? Math.min(promo.discount, cart.subtotal + fee) : 0;
   const total = roundMoney(cart.subtotal + fee - discount, c.decimals ?? 2);
   const belowMin = minOrder > 0 && cart.subtotal < minOrder;
 
@@ -143,7 +148,7 @@ export default function CheckoutClient({
           notes: form.notes,
           payment_method: pay,
           scheduled_for: when === "asap" ? null : when,
-          promo_code: promo?.code,
+          promo_code: reward > 0 ? undefined : promo?.code,
           location: type === "delivery" ? pin : null,
           items: cart.lines.map((l) => ({ id: l.id, qty: l.qty, choiceIds: l.choiceIds })),
         }),
@@ -345,9 +350,31 @@ export default function CheckoutClient({
         </section>
       )}
 
+      {/* ---------- Loyalty ---------- */}
+      {loyalty && (
+        <section className={`card space-y-2 p-4 ${reward > 0 ? "border-ok bg-green-50" : ""}`} data-testid="checkout-loyalty">
+          <div className="flex items-center justify-between text-sm">
+            <b>⭐ Stamp card</b>
+            <span className="text-muted">{loyalty.stamps}/{loyalty.every - 1}</span>
+          </div>
+          <Stamps s={loyalty} />
+          <p className="text-sm">
+            {reward > 0
+              ? `🎉 This is your reward order: ${loyalty.label} applied!`
+              : loyalty.due
+                ? `This would be your reward order, but it needs at least ${money(loyalty.minOrder, c)}.`
+                : cart.subtotal >= loyalty.minOrder
+                  ? `This order earns stamp ${loyalty.stamps + 1}. ${loyaltyText({ ...loyalty, stamps: loyalty.stamps + 1, due: loyalty.stamps + 1 === loyalty.every - 1 }, c)}`
+                  : `Orders over ${money(loyalty.minOrder, c)} earn a stamp.`}
+          </p>
+        </section>
+      )}
+
       {/* ---------- Promo code ---------- */}
       <section className="card p-4">
-        {promo ? (
+        {reward > 0 ? (
+          <p className="text-sm text-muted">Your loyalty reward is applied, so promo codes can&apos;t be added to this order.</p>
+        ) : promo ? (
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="font-medium text-ok">✓ {promo.code} applied</div>
@@ -376,7 +403,9 @@ export default function CheckoutClient({
         {type === "delivery" && (
           <Row label={`Delivery${zone ? ` · ${zone.name}` : ""}`} value={useZones && !zone ? "—" : money(fee, c)} />
         )}
-        {discount > 0 && <Row label={`Discount · ${promo!.code}`} value={`− ${money(discount, c)}`} accent />}
+        {discount > 0 && (
+          <Row label={reward > 0 ? "Loyalty reward" : `Discount · ${promo!.code}`} value={`− ${money(discount, c)}`} accent />
+        )}
         <Row label={pay === "card" ? "Total" : "Total (pay in cash)"} value={money(total, c)} strong />
         {chosenSlot && <p className="pt-1 text-sm text-muted">{type === "pickup" ? "Pickup" : "Delivery"}: {chosenSlot.day}, {chosenSlot.time}</p>}
         {settings.vat_percent > 0 && <p className="pt-1 text-xs text-muted">Prices include {settings.vat_percent}% VAT.</p>}

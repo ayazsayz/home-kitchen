@@ -7,6 +7,7 @@ import { optionsText } from "@/lib/options";
 import { NOTIFY_STATUSES, renderMessage, whatsappLink } from "@/lib/whatsapp";
 import { fmtWhen } from "@/lib/schedule";
 import { mapsLink } from "@/lib/maps";
+import InstallPrompt from "@/components/InstallPrompt";
 import { STATUS_LABEL, type Order, type OrderStatus, type Settings } from "@/lib/types";
 
 const PRINTER_KEY = "hk_printer_v1";
@@ -192,6 +193,7 @@ export default function OrdersBoard() {
         )}
       </div>
 
+      <InstallPrompt name={settings?.name ?? "Kitchen"} kitchen />
       <div className="card flex flex-wrap items-center gap-3 p-3 text-sm">
         <label className="flex items-center gap-2 font-medium">
           <input
@@ -294,7 +296,7 @@ export default function OrdersBoard() {
               </ul>
               {o.discount > 0 && (
                 <p className="mb-2 flex justify-between text-sm text-ok">
-                  <span>Promo {o.promo_code}</span>
+                  <span>{o.promo_code === "LOYALTY" ? "⭐ Loyalty reward" : `Promo ${o.promo_code}`}</span>
                   <span>− {money(o.discount, c)}</span>
                 </p>
               )}

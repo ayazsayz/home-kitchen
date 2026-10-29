@@ -10,9 +10,10 @@ Next.js 15 + Supabase. Customers order from their phone (cash on delivery or pic
 | `/checkout` | Customers | Delivery/pickup, ASAP or scheduled time, map pin, promo code, cash or card |
 | `/order/<id>` | Customers | Live order status (auto-refreshes) |
 | `/admin` | Staff | Live orders: accept → cooking → ready → delivered, reject, print, call/WhatsApp |
-| `/admin/menu` | Staff | Categories, dishes, photos, prices, sold-out toggle |
+| `/admin/menu` | Staff | Categories, dishes, photos, prices, sold-out toggle, daily stock limits |
+| `/admin/customers` | Staff | Every customer by phone: orders, spend, favourites, history, WhatsApp message, CSV |
 | `/admin/promos` | Staff | Promo codes: % off, AED off, free delivery, limits, dates, usage |
-| `/admin/sales` | Staff | Revenue, order count, best sellers, by-day, CSV export |
+| `/admin/sales` | Staff | Daily summary (share on WhatsApp), revenue, best sellers, by-day, CSV export |
 | `/admin/expenses` | Staff | Record shopping & running costs, receipt photos, profit & cash-in-hand report, CSV |
 | `/admin/settings` | Staff | Country & time zone, currency, open/closed, opening hours & pre-orders, map pin, delivery areas & fees, card payments, WhatsApp messages, VAT/TRN, test print |
 
@@ -121,6 +122,30 @@ The top of the page shows, for the chosen period (today, 7 days, this month, las
 
 Below: spending by category (click one to filter), the full list (edit/delete), and CSV export for your accountant. Edit the category list with **Edit categories**.
 
+## Customers
+
+Admin → **Customers** lists everyone who has ordered, grouped by mobile number: orders, total spent, last order, favourite dish. Filter regulars (3+ orders), one-time customers or people who haven't ordered in 30 days; click a row for their order history. Write a message once (with `{name}` and `{menu}`) and tap **WhatsApp** next to each customer to send it, or **Copy numbers** to paste into a WhatsApp broadcast list. Export to CSV.
+
+## Loyalty stamps
+
+Settings → **Loyalty stamps**: e.g. every 10th order gets 20% off (or a fixed amount; optional cap and minimum order). Stamps are counted by mobile number from past orders — nothing for customers to sign up to. The reward is applied automatically at checkout; customers see their stamp card on the menu (on the device they ordered from), at checkout and on the order page. A reward order can't also use a promo code. Rewards show as "Loyalty reward" on tickets, the order screen and the customer list.
+
+## Daily stock limits
+
+Menu → edit a dish → **Daily limit**, e.g. 20 biryanis. The menu shows "Only 3 left today" when it's running low and "Sold out today" at zero; the server refuses orders beyond the limit. It resets every day (shop time zone). Pre-orders count towards the day they're scheduled for, rejected orders give the stock back, and unpaid card orders hold stock for 30 minutes. The admin menu shows "sold/limit today" per dish.
+
+## Daily summary
+
+- **Sales → Daily summary**: orders, sales, cash vs card, expenses, profit and top dishes for any day, with **Share on WhatsApp** (send it to yourself or a family group) and **Copy**.
+- **Nightly email** (optional): create a free [Resend](https://resend.com) account, add `RESEND_API_KEY` and a random `CRON_SECRET` in Vercel → Environment Variables, enter the email in Settings → Daily summary email and redeploy. `vercel.json` runs the job at 20:30 UTC (00:30 UAE, 01:30 Pakistan) and emails the day that just ended. Use **Send today's summary now** to test. Without a verified domain, Resend only delivers to your own Resend login email; set `SUMMARY_FROM` once you verify a domain.
+
+## Install as an app
+
+The site is an installable web app:
+- **Customers**: Android/Chrome shows an **Install** button on the menu; iPhone shows "Share → Add to Home Screen". It opens full-screen with the restaurant's initial as the icon.
+- **Kitchen**: on the Orders screen, install the dashboard on the kitchen tablet/PC — it opens straight to `/admin`.
+- If the connection drops, a friendly offline page is shown; menu, orders and prices are never cached, so everything stays live.
+
 ## Ideas for later
 
-Fully automatic WhatsApp messages (WhatsApp Cloud API), loyalty / repeat-customer discounts, daily stock limits, and an Android phone + Bluetooth printer setup via RawBT.
+Fully automatic WhatsApp messages (WhatsApp Cloud API), combo deals, staff logins with roles, a driver page, and an Android phone + Bluetooth printer setup via RawBT.

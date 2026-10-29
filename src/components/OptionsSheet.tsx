@@ -10,9 +10,12 @@ export default function OptionsSheet({
   currency,
   onClose,
   onAdd,
+  maxQty,
 }: {
   item: MenuItem;
   currency: Currency;
+  /** remaining daily stock for this dish (undefined = unlimited) */
+  maxQty?: number;
   onClose: () => void;
   onAdd: (choiceIds: string[], labels: string[], unitPrice: number, qty: number) => void;
 }) {
@@ -119,9 +122,9 @@ export default function OptionsSheet({
             <div className="flex items-center overflow-hidden rounded-xl border border-line">
               <button className="px-3 py-2 text-lg" onClick={() => setQty(Math.max(1, qty - 1))} aria-label="Decrease">−</button>
               <span className="w-6 text-center font-semibold">{qty}</span>
-              <button className="px-3 py-2 text-lg" onClick={() => setQty(qty + 1)} aria-label="Increase">+</button>
+              <button className="px-3 py-2 text-lg disabled:opacity-30" disabled={maxQty !== undefined && qty >= maxQty} onClick={() => setQty(qty + 1)} aria-label="Increase">+</button>
             </div>
-            <button className="btn flex-1 py-3" onClick={add}>
+            <button className="btn flex-1 py-3" onClick={add} disabled={maxQty !== undefined && (maxQty < 1 || qty > maxQty)}>
               Add · {money(unit * qty, currency)}
             </button>
           </div>

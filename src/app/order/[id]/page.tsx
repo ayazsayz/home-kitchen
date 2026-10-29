@@ -7,6 +7,9 @@ import { cardAvailable, syncPayment } from "@/lib/payments/service";
 import type { OrderStatus } from "@/lib/types";
 import { fmtWhen } from "@/lib/schedule";
 import AutoRefresh from "@/components/AutoRefresh";
+import Stamps from "@/components/Stamps";
+import { loyaltyText } from "@/lib/loyalty";
+import { loyaltyStatus } from "@/lib/loyalty-server";
 import PaymentActions from "@/components/PaymentActions";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +46,10 @@ export default async function OrderPage({
     else if (result === "failed") order = { ...order, payment_status: "failed" };
   }
   const settings = await getSettings();
+  const stampCard =
+    settings.loyalty_enabled && !["rejected", "pending_payment"].includes(order.status)
+      ? await loyaltyStatus(order.customer_phone, settings, currencyOf(settings))
+      : null;
 
   const c = currencyOf(settings);
   const steps = STEPS.filter((s) => !(order.order_type === "pickup" && s.key === "out_for_delivery"));
@@ -118,7 +125,7 @@ export default async function OrderPage({
         )}
         {order.discount > 0 && (
           <div className="flex justify-between p-3 text-ok">
-            <span>Discount{order.promo_code ? ` · ${order.promo_code}` : ""}</span>
+            <span>{order.promo_code === "LOYALTY" ? "⭐ Loyalty reward" : `Discount${order.promo_code ? ` · ${order.promo_code}` : ""}`}</span>
             <span>− {money(order.discount, c)}</span>
           </div>
         )}
@@ -127,6 +134,17 @@ export default async function OrderPage({
           <span>{money(order.total, c)}</span>
         </div>
       </section>
+
+      {stampCard && (
+        <section className="card space-y-2 p-4" data-testid="order-loyalty">
+          <div className="flex items-center justify-between text-sm">
+            <b>⭐ Your stamp card</b>
+            <span className="text-muted">{stampCard.stamps}/{stampCard.every - 1}</span>
+          </div>
+          <Stamps s={stampCard} />
+          <p className="text-sm">{loyaltyText(stampCard, currencyOf(settings))}</p>
+        </section>
+      )}
 
       {settings.phone && (
         <a href={`tel:${settings.phone}`} className="btn-ghost w-full">Call {settings.name}</a>
