@@ -75,3 +75,19 @@ body {
   direction: ltr;
   text-align: right;
 }
+
+/* ---------- Menu ---------- */
+/* Soft dotted texture over a gradient (hero without a cover photo, dishes without a photo). */
+.hero-pattern {
+  position: relative;
+}
+.hero-pattern::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgb(255 255 255 / 0.18) 0 2px, transparent 3px),
+    radial-gradient(circle at 70% 60%, rgb(255 255 255 / 0.12) 0 2px, transparent 3px);
+  background-size: 28px 28px, 36px 36px;
+}

@@ -21,7 +21,7 @@ export async function getMenu(): Promise<{ categories: Category[]; items: MenuIt
   if (i.error) throw i.error;
   return {
     categories: c.data,
-    items: i.data.map((x) => ({ ...normalise(x), option_groups: x.option_groups ?? [] })) as MenuItem[],
+    items: i.data.map((x) => ({ ...normalise(x), option_groups: x.option_groups ?? [], tags: x.tags ?? [] })) as MenuItem[],
   };
 }
 

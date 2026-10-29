@@ -113,6 +113,8 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
         address: s.address,
         delivery_fee: Number(s.delivery_fee) || 0,
         min_order: Number(s.min_order) || 0,
+        eta_minutes:
+          s.eta_minutes === null || (s.eta_minutes as unknown) === "" ? null : Math.min(240, Math.max(5, Math.round(Number(s.eta_minutes)) || 30)),
         vat_percent: Number(s.vat_percent) || 0,
         trn: s.trn,
         is_open: s.is_open,
@@ -223,6 +225,19 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
               step="any"
               value={s.min_order}
               onChange={(e) => set("min_order", e.target.value as unknown as number)}
+            />
+          </Field>
+          <Field label="Usual delivery time, minutes (shown on the menu)">
+            <input
+              id="eta-minutes"
+              className="input"
+              type="number"
+              min={5}
+              max={240}
+              step={5}
+              placeholder="e.g. 40 — leave empty to hide"
+              value={s.eta_minutes ?? ""}
+              onChange={(e) => set("eta_minutes", e.target.value === "" ? null : (e.target.value as unknown as number))}
             />
           </Field>
         </div>

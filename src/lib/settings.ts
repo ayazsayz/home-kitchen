@@ -24,6 +24,7 @@ export function withSettingDefaults(s: Record<string, unknown>): Settings {
     logo_url: String(s.logo_url ?? ""),
     cover_url: String(s.cover_url ?? ""),
     brand_color: normalizeHex(String(s.brand_color ?? "")) ?? DEFAULT_BRAND,
+    eta_minutes: s.eta_minutes == null || s.eta_minutes === "" ? null : Number(s.eta_minutes),
     tagline: s.tagline == null ? "Home-cooked, made to order" : String(s.tagline),
     languages: (Array.isArray(s.languages) ? (s.languages as string[]) : ["en"]).filter((l): l is Lang => l === "en" || l === "ar" || l === "ur"),
     default_language: s.default_language === "ar" || s.default_language === "ur" ? s.default_language : "en",

@@ -9,12 +9,15 @@ import { fmtDay, fmtTime, fmtWhen } from "@/lib/schedule";
 import { useI18n } from "./I18n";
 import { regionOf } from "@/lib/region";
 import type { Availability } from "@/lib/data";
-import type { DeliveryZone, Settings } from "@/lib/types";
+import type { DeliveryZone, MenuItem, Settings } from "@/lib/types";
 import type { LatLng } from "./MapPicker";
 import { Stepper } from "./MenuClient";
 import { LAST_ORDER_KEY } from "./LastOrderCard";
 import { Stamps, loyaltyText, useLoyalty } from "./LoyaltyCard";
 import { rewardDiscount } from "@/lib/loyalty";
+import { suggestions } from "@/lib/suggest";
+import { localize } from "@/lib/i18n";
+import { emojiFor } from "./MenuClient";
 
 const MapPicker = dynamic(() => import("./MapPicker"), {
   ssr: false,
@@ -29,11 +32,14 @@ export default function CheckoutClient({
   availability,
   zones,
   googleMapsKey,
+  menuItems = [],
 }: {
   settings: Settings;
   availability: Availability;
   zones: DeliveryZone[];
   googleMapsKey: string;
+  /** for "goes well with your order" (cost is stripped) */
+  menuItems?: MenuItem[];
 }) {
   const cart = useCart();
   const router = useRouter();
@@ -219,6 +225,39 @@ export default function CheckoutClient({
           </div>
         ))}
       </section>
+
+      {(() => {
+        const extra = suggestions(menuItems, cart.lines);
+        if (!extra.length || !availability.canOrder) return null;
+        return (
+          <section className="card space-y-2 p-4" data-testid="upsell">
+            <h2 className="font-semibold">✨ {t("goesWell")}</h2>
+            <ul className="space-y-2">
+              {extra.map((i) => {
+                const name = localize(i.name, i.name_i18n, lang);
+                return (
+                  <li key={i.id} className="flex items-center gap-3">
+                    {i.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={i.image_url} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+                    ) : (
+                      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-brand/10 text-2xl" aria-hidden>{emojiFor(i.name)}</span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">{name}</span>
+                      <span className="text-sm text-muted">{money(i.price, c)}</span>
+                    </span>
+                    <button type="button" className="btn-ghost shrink-0 border-brand px-3 py-1.5 text-sm text-brand"
+                      onClick={() => cart.add({ id: i.id, name, price: i.price, choiceIds: [], optionLabels: [] })}>
+                      + {t("add")}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })()}
 
       <Toggle value={type} onChange={setType} options={[["delivery", t("delivery")], ["pickup", t("pickup")]]} />
 

@@ -6,6 +6,7 @@ import MenuClient from "@/components/MenuClient";
 import CustomerShell from "@/components/CustomerShell";
 import { currentLang, offeredLangs } from "@/lib/lang-server";
 import { menuReviews } from "@/lib/reviews-server";
+import { bestSellers } from "@/lib/popular";
 
 export const dynamic = "force-dynamic";
 
@@ -21,11 +22,12 @@ export async function generateMetadata() {
 export default async function Home() {
   const [settings, menu] = await Promise.all([getSettings(), getMenu()]);
   const limited = menu.items.filter((i) => i.daily_limit != null);
-  const [availability, sold, lang, rev] = await Promise.all([
+  const [availability, sold, lang, rev, best] = await Promise.all([
     getAvailability(settings),
     limited.length ? soldByDay(settings.timezone, 0) : Promise.resolve({}),
     currentLang(settings),
     menuReviews().catch(() => null),
+    bestSellers().catch(() => []),
   ]);
   return (
     <CustomerShell lang={lang} langs={offeredLangs(settings)}>
@@ -37,6 +39,7 @@ export default async function Home() {
       remaining={remainingFor(limited, sold, todayIn(settings.timezone))}
       rating={rev?.rating}
       reviews={rev?.reviews}
+      bestsellers={best}
     />
     </CustomerShell>
   );

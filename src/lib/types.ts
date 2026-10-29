@@ -44,6 +44,7 @@ export type Settings = {
   default_language: Lang;
   delivery_fee: number;
   min_order: number;
+  eta_minutes: number | null; // "delivery in about N min" on the menu
   vat_percent: number;
   trn: string;
   is_open: boolean;
@@ -127,7 +128,11 @@ export type MenuItem = {
   cost?: number | null;
   name_i18n?: I18nText;
   description_i18n?: I18nText;
+  tags?: DishTag[];
 };
+
+/** Badges the owner can tick on a dish. "suggest" = offered at checkout. */
+export type DishTag = "spicy" | "chef" | "new" | "suggest";
 
 /** What the customer picked, as stored on the order line. */
 export type PickedOption = { group: string; name: string; price: number };
