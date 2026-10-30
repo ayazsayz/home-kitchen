@@ -266,7 +266,7 @@ export default function CheckoutClient({
         <h2 className="font-semibold">{t("when")}</h2>
         {!availability.canOrder ? (
           <p className="text-sm text-brand-dark">
-            {settings.closed_message}
+            {availability.closure ? (availability.closure.note ? t("closedFor", { note: availability.closure.note }) + "." : t("closedDays") + ".") : settings.closed_message}
             {availability.nextOpen && <> {t("opensFull", { when: fmtWhen(availability.nextOpen, tz, undefined, lang) })}</>}
           </p>
         ) : (

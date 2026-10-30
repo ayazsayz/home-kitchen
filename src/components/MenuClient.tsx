@@ -5,7 +5,7 @@ import { useCart } from "@/lib/cart";
 import { currencyOf, money } from "@/lib/format";
 import type { Category, MenuItem, Settings } from "@/lib/types";
 import type { Availability } from "@/lib/data";
-import { fmtWhen } from "@/lib/schedule";
+import { fmtBack, fmtWhen } from "@/lib/schedule";
 import OptionsSheet from "./OptionsSheet";
 import LoyaltyCard from "./LoyaltyCard";
 import InstallPrompt from "./InstallPrompt";
@@ -153,7 +153,14 @@ export default function MenuClient({
           )}
         </div>
         <div className="mt-3"><LanguageSwitcher /></div>
-        {!availability.asap && (
+        {availability.closure && (
+          <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900" data-testid="closure-banner">
+            <b>🌙 {availability.closure.note ? t("closedFor", { note: availability.closure.note }) : t("closedDays")}.</b>{" "}
+            {availability.nextOpen && t("backOn", { when: fmtBack(availability.nextOpen, settings.timezone, lang) })}
+            {availability.canOrder && <> <b>{t("canPreorder")}</b></>}
+          </div>
+        )}
+        {!availability.asap && !availability.closure && (
           <div className="mt-4 rounded-xl border border-brand/30 bg-brand/10 px-4 py-3 text-brand-dark">
             {availability.canOrder ? (
               <>

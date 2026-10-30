@@ -1,7 +1,7 @@
 import { currencyOf } from "./format";
 import { validTz } from "./tz";
 import { DEFAULT_BRAND, normalizeHex } from "./brand";
-import type { Lang, Settings } from "./types";
+import type { Closure, Lang, Settings } from "./types";
 
 export const DEFAULT_EXPENSE_CATEGORIES = [
   "Meat", "Chicken", "Vegetables & fruit", "Bread & buns", "Dairy", "Spices & oil", "Groceries", "Packaging",
@@ -25,6 +25,11 @@ export function withSettingDefaults(s: Record<string, unknown>): Settings {
     cover_url: String(s.cover_url ?? ""),
     brand_color: normalizeHex(String(s.brand_color ?? "")) ?? DEFAULT_BRAND,
     eta_minutes: s.eta_minutes == null || s.eta_minutes === "" ? null : Number(s.eta_minutes),
+    closures: (Array.isArray(s.closures) ? (s.closures as Closure[]) : []).filter(
+      (c) => c && /^\d{4}-\d{2}-\d{2}$/.test(c.from) && /^\d{4}-\d{2}-\d{2}$/.test(c.to),
+    ),
+    max_orders_phone: s.max_orders_phone == null ? 3 : Math.max(0, Number(s.max_orders_phone) || 0),
+    max_orders_device: s.max_orders_device == null ? 6 : Math.max(0, Number(s.max_orders_device) || 0),
     tagline: s.tagline == null ? "Home-cooked, made to order" : String(s.tagline),
     languages: (Array.isArray(s.languages) ? (s.languages as string[]) : ["en"]).filter((l): l is Lang => l === "en" || l === "ar" || l === "ur"),
     default_language: s.default_language === "ar" || s.default_language === "ur" ? s.default_language : "en",

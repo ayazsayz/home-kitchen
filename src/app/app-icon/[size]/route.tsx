@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { getSettings } from "@/lib/data";
+import { imageData } from "@/lib/image-data";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ size: st
     const s = await getSettings();
     name = s.name || name;
     color = s.brand_color || color;
-    logo = s.logo_url || "";
+    logo = (await imageData(s.logo_url)) ?? ""; // skipped if it can't be drawn (e.g. WebP)
   } catch {}
   const initial = (name.trim()[0] || "K").toUpperCase();
   if (logo) {

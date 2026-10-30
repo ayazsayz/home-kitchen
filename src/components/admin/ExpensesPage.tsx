@@ -1,4 +1,5 @@
 "use client";
+import { IMAGE_SIZES, shrinkImage } from "@/lib/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { currencyOf, money, normalise, roundMoney, type Currency } from "@/lib/format";
@@ -116,9 +117,10 @@ export default function ExpensesPage() {
     setMsg("");
     let receipt_path = draft.receipt_path;
     if (draft.file) {
-      const ext = (draft.file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const file = await shrinkImage(draft.file, IMAGE_SIZES.receipt, { quality: 0.8 });
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
       const path = `${draft.spent_on.slice(0, 7)}/${crypto.randomUUID()}.${ext}`;
-      const up = await db.storage.from("receipts").upload(path, draft.file);
+      const up = await db.storage.from("receipts").upload(path, file, { contentType: file.type });
       if (up.error) {
         setBusy(false);
         return setMsg(`Receipt upload failed: ${up.error.message}`);

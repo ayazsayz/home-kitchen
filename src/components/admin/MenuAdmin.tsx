@@ -1,4 +1,5 @@
 "use client";
+import { IMAGE_SIZES, shrinkImage } from "@/lib/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { money, normalise } from "@/lib/format";
@@ -102,12 +103,13 @@ export default function MenuAdmin() {
     await db.from("menu_items").update({ available: !i.available }).eq("id", i.id);
   }
 
-  async function uploadImage(file: File) {
+  async function uploadImage(original: File) {
     setBusy(true);
     setErr("");
+    const file = await shrinkImage(original, IMAGE_SIZES.dish);
     const ext = file.name.split(".").pop() || "jpg";
     const path = `${crypto.randomUUID()}.${ext}`;
-    const { error } = await db.storage.from("menu").upload(path, file, { cacheControl: "31536000" });
+    const { error } = await db.storage.from("menu").upload(path, file, { cacheControl: "31536000", contentType: file.type });
     setBusy(false);
     if (error) return setErr(error.message);
     const { data } = db.storage.from("menu").getPublicUrl(path);

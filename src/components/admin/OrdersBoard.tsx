@@ -42,6 +42,22 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
   const [drivers, setDrivers] = useState<{ user_id: string; name: string }[]>([]);
   const [lowReviews, setLowReviews] = useState<{ id: string; rating: number; comment: string; customer_name: string; orders: { order_no: number } | null }[]>([]);
   const canManage = role === "owner" || role === "manager";
+  const [blocked, setBlocked] = useState<Set<string>>(new Set());
+  const loadBlocked = useCallback(
+    () => db.from("blocked_phones").select("phone").then(({ data }) => setBlocked(new Set((data ?? []).map((x) => x.phone)))),
+    [db],
+  );
+  useEffect(() => {
+    loadBlocked();
+  }, [loadBlocked]);
+  async function blockNumber(o: Order) {
+    if (!confirm(`Block ${o.customer_phone}? This number won't be able to order online any more (you can unblock it in Settings → Fake orders).`)) return;
+    setBlocked((cur) => new Set(cur).add(o.customer_phone));
+    const { data: u } = await db.auth.getUser();
+    const { data: me } = await db.from("staff").select("name").eq("user_id", u.user?.id ?? "").maybeSingle();
+    await db.from("blocked_phones").upsert({ phone: o.customer_phone, reason: `Order #${o.order_no}`, blocked_by_name: me?.name ?? "" });
+    loadBlocked();
+  }
   useEffect(() => {
     if (role !== "owner") return; // only the owner can read the staff list
     db.from("staff").select("user_id, name").eq("role", "driver").eq("active", true).order("name")
@@ -320,6 +336,14 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
                 </div>
                 <span className="rounded-full bg-cream px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[o.status]}</span>
               </header>
+              {(blocked.has(o.customer_phone) || (o.first_order && !isDone(o))) && (
+                <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
+                  {blocked.has(o.customer_phone) && <span className="rounded-md bg-red-600 px-2 py-0.5 text-white" data-testid="blocked-badge">🚫 Blocked number</span>}
+                  {o.first_order && !isDone(o) && (
+                    <span className="rounded-md bg-sky-100 px-2 py-0.5 text-sky-900" data-testid="first-order-badge">🆕 First order — call to confirm</span>
+                  )}
+                </div>
+              )}
 
               <ul className="my-3 space-y-0.5">
                 {o.order_items?.map((i) => (
@@ -395,6 +419,11 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
                     onClick={() => confirm(`Reject order #${o.order_no}?`) && setStatus(o, "rejected")}
                   >
                     Reject
+                  </button>
+                )}
+                {canManage && !blocked.has(o.customer_phone) && ["new", "rejected"].includes(o.status) && (
+                  <button className="btn-ghost text-red-700" onClick={() => blockNumber(o)} aria-label={`Block number for order ${o.order_no}`}>
+                    🚫 Block
                   </button>
                 )}
                 {settings && (

@@ -2,8 +2,8 @@ import "server-only";
 import { supabaseAdmin } from "./supabase-server";
 import { normalise, normaliseOrder } from "./format";
 import { withSettingDefaults } from "./settings";
-import { buildSlots, isOpenNow, nextOpening, slotKey, type Slot } from "./schedule";
-import type { Category, DeliveryZone, MenuItem, Order, Settings } from "./types";
+import { buildSlots, currentClosure, isOpenNow, nextOpening, slotKey, type Slot } from "./schedule";
+import type { Category, Closure, DeliveryZone, MenuItem, Order, Settings } from "./types";
 
 export async function getSettings(): Promise<Settings> {
   const { data, error } = await supabaseAdmin().from("settings").select("*").eq("id", 1).single();
@@ -64,6 +64,7 @@ export type Availability = {
   slots: Slot[]; // scheduled slots (may be empty)
   canOrder: boolean;
   nextOpen: string | null; // ISO, when closed
+  closure: Closure | null; // holiday in force right now
 };
 
 export async function getAvailability(s: Settings): Promise<Availability> {
@@ -71,5 +72,6 @@ export async function getAvailability(s: Settings): Promise<Availability> {
   const slots = s.allow_scheduled ? buildSlots(s, await getSlotCounts(s.days_ahead), now) : [];
   const asap = s.allow_asap && isOpenNow(s, now);
   const next = !isOpenNow(s, now) && s.is_open ? nextOpening(s, now) : null;
-  return { asap, slots, canOrder: asap || slots.some((x) => !x.full), nextOpen: next?.toISOString() ?? null };
+  const closure = s.is_open ? currentClosure(s, now) ?? null : null;
+  return { asap, slots, canOrder: asap || slots.some((x) => !x.full), nextOpen: next?.toISOString() ?? null, closure };
 }

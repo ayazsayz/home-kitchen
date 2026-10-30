@@ -1,4 +1,5 @@
 import { isLang } from "@/lib/i18n";
+import { clientHash, screenOrder } from "@/lib/safety";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { currencyOf, money, roundMoney } from "@/lib/format";
@@ -62,6 +63,9 @@ export async function POST(req: Request) {
   const cur = currencyOf(settings);
   const phone = normalisePhone(rawPhone, settings.phone_country_code).slice(0, 20);
   if (!validPhone(phone)) return bad("Please enter a valid mobile number");
+  const hash = clientHash(req);
+  const screen = await screenOrder(db, phone, hash, { phone: settings.max_orders_phone, device: settings.max_orders_device });
+  if (screen.error) return bad(screen.error, screen.status);
   const round = (n: number) => roundMoney(n, cur.decimals);
 
   // ----- when: ASAP or a scheduled slot -----
@@ -81,6 +85,7 @@ export async function POST(req: Request) {
     scheduledFor = slot.start;
   } else if (!avail.asap) {
     if (avail.slots.some((x) => !x.full)) return bad("We're not taking orders for right now. Please choose a time.", 409);
+    if (avail.closure) return bad(`We're closed${avail.closure.note ? ` for ${avail.closure.note}` : ""} right now. Please order again when we're back.`);
     return bad(settings.closed_message || "We are closed right now");
   }
 
@@ -216,6 +221,8 @@ export async function POST(req: Request) {
       payment_status: card ? "pending" : "unpaid",
       status: card ? "pending_payment" : "new",
       lang: isLang(body.lang) ? body.lang : "en",
+      first_order: screen.firstOrder,
+      client_hash: hash,
     })
     .select("id, order_no")
     .single();
