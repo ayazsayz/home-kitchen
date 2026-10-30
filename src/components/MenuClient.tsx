@@ -12,6 +12,7 @@ import InstallPrompt from "./InstallPrompt";
 import LastOrderCard from "./LastOrderCard";
 import { LanguageSwitcher, useI18n } from "./I18n";
 import { localize } from "@/lib/i18n";
+import { normalisePhone } from "@/lib/region";
 import type { PublicReview, RatingSummary } from "@/lib/reviews";
 
 export default function MenuClient({
@@ -71,6 +72,8 @@ export default function MenuClient({
   const deliveryPill =
     settings.delivery_fee > 0 ? t("deliveryFeePill", { amount: money(settings.delivery_fee, cur) }) : t("freeDeliveryPill");
   const open = availability.asap;
+  const waDigits = normalisePhone(settings.phone || "", settings.phone_country_code).replace(/\D/g, "");
+  const waNumber = settings.whatsapp_button && waDigits.length >= 8 ? waDigits : "";
 
   /** Add button / stepper / sold-out note for one dish. */
   function action(i: MenuItem, full = false) {
@@ -267,7 +270,23 @@ export default function MenuClient({
             </ul>
           </section>
         )}
+        <footer className="flex justify-center gap-4 pb-4 pt-2 text-xs text-muted">
+          <a href="/legal#privacy" className="hover:text-ink">{t("privacy")}</a>
+          <a href="/legal#terms" className="hover:text-ink">{t("terms")}</a>
+        </footer>
       </main>
+
+      {waNumber && (
+        <a href={`https://wa.me/${waNumber}?text=${encodeURIComponent(`Hi ${settings.name}!`)}`} target="_blank" rel="noreferrer"
+          aria-label={t("chatWhatsApp")} title={t("chatWhatsApp")} data-testid="whatsapp-button"
+          className={`fixed end-4 z-30 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-white shadow-lg shadow-black/20 transition hover:scale-105 ${
+            cart.ready && cart.count > 0 && availability.canOrder ? "bottom-24" : "bottom-5"
+          }`}>
+          <svg viewBox="0 0 32 32" className="h-7 w-7" fill="currentColor" aria-hidden>
+            <path d="M16 3C9 3 3.3 8.6 3.3 15.6c0 2.5.7 4.9 2 7L3 29l6.6-2.1c2 1.1 4.2 1.7 6.4 1.7 7 0 12.7-5.6 12.7-12.6S23 3 16 3zm0 23.1c-2 0-4-.6-5.7-1.6l-.4-.2-3.9 1.2 1.3-3.8-.3-.4a10.4 10.4 0 0 1-1.6-5.6C5.4 9.8 10.1 5.2 16 5.2s10.6 4.6 10.6 10.4S21.9 26.1 16 26.1zm5.8-7.8c-.3-.2-1.9-.9-2.2-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-1 1.2-.2.2-.4.2-.7.1-.3-.2-1.3-.5-2.6-1.6-1-.8-1.6-1.9-1.8-2.2-.2-.3 0-.5.1-.7l.5-.6c.2-.2.2-.4.3-.6.1-.2 0-.4 0-.6l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.8s1.2 3.2 1.4 3.5c.2.2 2.4 3.6 5.8 5 .8.3 1.4.5 1.9.7.8.2 1.5.2 2.1.1.6-.1 1.9-.8 2.2-1.5.3-.7.3-1.4.2-1.5-.1-.2-.3-.3-.6-.4z" />
+          </svg>
+        </a>
+      )}
 
       {picking && (
         <OptionsSheet

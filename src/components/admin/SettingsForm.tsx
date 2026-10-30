@@ -24,7 +24,7 @@ const TABS = [
   { key: "region", icon: "🌐", label: "Region & language", hint: "Country, time zone, currency and customer languages." },
   { key: "messages", icon: "💬", label: "WhatsApp", hint: "Messages sent to customers when an order changes." },
   { key: "loyalty", icon: "⭐", label: "Loyalty", hint: "Stamp card rewards for regular customers." },
-  { key: "reports", icon: "📋", label: "Daily summary", hint: "Nightly email with the day's numbers." },
+  { key: "reports", icon: "📋", label: "Summary & backup", hint: "Nightly email with the day's numbers, and backups of all your data." },
   { key: "safety", icon: "🛡️", label: "Fake orders", hint: "Blocked numbers and limits on repeated orders." },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
@@ -117,6 +117,10 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
         address: s.address,
         delivery_fee: Number(s.delivery_fee) || 0,
         min_order: Number(s.min_order) || 0,
+        late_minutes: Math.min(240, Math.max(0, Math.round(Number(s.late_minutes)) || 0)),
+        backup_weekly: s.backup_weekly,
+        whatsapp_button: s.whatsapp_button,
+        legal_extra: (s.legal_extra || "").slice(0, 2000),
         max_orders_phone: Math.min(50, Math.max(0, Math.round(Number(s.max_orders_phone)) || 0)),
         max_orders_device: Math.min(50, Math.max(0, Math.round(Number(s.max_orders_device)) || 0)),
         closures: s.closures
@@ -210,14 +214,43 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
           <Field label="Message when closed">
             <input className="input" value={s.closed_message} onChange={(e) => set("closed_message", e.target.value)} />
           </Field>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="h-4 w-4 accent-ok" checked={s.whatsapp_button} aria-label="WhatsApp chat button"
+              onChange={(e) => set("whatsapp_button", e.target.checked)} />
+            Show a 💬 WhatsApp chat button on the menu (uses the phone above)
+          </label>
         </div>
         <BrandingSettings s={s} set={set} />
+        <div className="card space-y-3 p-4">
+          <div>
+            <div className="font-semibold">📄 Privacy & terms</div>
+            <p className="text-sm text-muted">
+              A ready-made <a href="/legal" target="_blank" className="text-brand underline">Privacy & Terms page</a> is linked at the bottom of the menu
+              and checkout, filled in with your shop details. Add anything extra below (e.g. refund rules, allergy notice).
+            </p>
+          </div>
+          <Field label="Extra terms (optional)">
+            <textarea id="legal-extra" className="input text-sm" rows={3} maxLength={2000} value={s.legal_extra}
+              onChange={(e) => set("legal_extra", e.target.value)} />
+          </Field>
+        </div>
       </>
     ),
     hours: (
       <>
         <HoursSettings s={s} set={set} />
         <ClosuresSettings s={s} set={set} />
+        <div className="card space-y-2 p-4">
+          <div className="font-semibold">⏰ Late-order alert</div>
+          <p className="text-sm text-muted">
+            On the Orders screen, an order not yet ready this many minutes after it was placed (or past its pre-order time) turns red and beeps once.
+            0 = off.
+          </p>
+          <Field label="Minutes">
+            <input id="late-minutes" className="input w-32" type="number" min={0} max={240} value={s.late_minutes}
+              onChange={(e) => set("late_minutes", e.target.value as unknown as number)} />
+          </Field>
+        </div>
       </>
     ),
     delivery: (
@@ -857,6 +890,35 @@ function SummarySettings({ s, set }: { s: Settings; set: <K extends keyof Settin
         Needs a free Resend account: add <code>RESEND_API_KEY</code> and <code>CRON_SECRET</code> in Vercel (see README). Save first, then
         test.
       </p>
+      <BackupSettings s={s} set={set} />
+    </div>
+  );
+}
+
+function BackupSettings({ s, set }: { s: Settings; set: <K extends keyof Settings>(k: K, v: Settings[K]) => void }) {
+  const [msg, setMsg] = useState("");
+  async function sendNow() {
+    setMsg("Sending…");
+    const res = await fetch("/api/admin/backup", { method: "POST" });
+    const d = await res.json().catch(() => ({}));
+    setMsg(d.sent ? "Sent ✓ — check your inbox" : `Not sent: ${d.reason ?? d.error ?? "unknown error"}`);
+  }
+  return (
+    <div className="space-y-2 border-t border-line pt-3" data-testid="backup-settings">
+      <div className="font-semibold">💾 Backup</div>
+      <p className="text-sm text-muted">
+        A ZIP of all your orders, customers, menu, expenses and settings (CSV files that open in Excel). The free database plan has no backups, so keep a copy.
+      </p>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" className="h-4 w-4 accent-ok" checked={s.backup_weekly} aria-label="Weekly backup email"
+          onChange={(e) => set("backup_weekly", e.target.checked)} />
+        Email me a backup every Sunday night (to the address above)
+      </label>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <a className="btn-ghost py-1.5 text-sm" href="/api/admin/backup" data-testid="download-backup">⬇ Download backup now</a>
+        <button type="button" className="btn-ghost py-1.5 text-sm" onClick={sendNow} disabled={!s.summary_email.trim()}>Email backup now</button>
+        {msg && <span className={msg.startsWith("Sent") ? "text-ok" : "text-muted"}>{msg}</span>}
+      </div>
     </div>
   );
 }

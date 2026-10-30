@@ -48,6 +48,10 @@ export type Settings = {
   closures: Closure[]; // holidays / days off
   max_orders_phone: number; // per 10 min, 0 = no limit
   max_orders_device: number;
+  late_minutes: number; // kitchen alert after N minutes, 0 = off
+  backup_weekly: boolean;
+  whatsapp_button: boolean;
+  legal_extra: string;
   vat_percent: number;
   trn: string;
   is_open: boolean;
@@ -176,6 +180,12 @@ export type Order = {
   delivered_at?: string | null;
   lang?: Lang;
   first_order?: boolean; // first order from this number (call to confirm)
+  cancel_reason?: string; // set when an accepted order was cancelled (status stays "rejected")
+  cancelled_by_name?: string;
+  edited_at?: string | null;
+  edit_note?: string;
+  /** staff note about this customer (loaded on the Orders screen, not stored on the order) */
+  customer_note?: string;
   subtotal: number;
   delivery_fee: number;
   total: number;

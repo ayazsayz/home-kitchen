@@ -94,6 +94,10 @@ export default async function OrderPage({
         )}
       </div>
 
+      {order.edited_at && order.status !== "rejected" && (
+        <p className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-900" data-testid="order-updated">✏️ {t("updatedMsg")}</p>
+      )}
+
       {awaitingPayment ? (
         <div className="card space-y-3 p-4">
           {payment === "done" && order.payment_status !== "failed" ? (
@@ -109,7 +113,7 @@ export default async function OrderPage({
         </div>
       ) : order.status === "rejected" ? (
         <div className="card border-red-200 bg-red-50 p-4 text-red-800">
-          {t("rejectedMsg")} {settings.phone && <>{t("callUs", { phone: settings.phone })}</>}
+          {order.cancel_reason ? t("cancelledMsg") : t("rejectedMsg")} {settings.phone && <>{t("callUs", { phone: settings.phone })}</>}
           {paid && <> {t("refund")}</>}
         </div>
       ) : (

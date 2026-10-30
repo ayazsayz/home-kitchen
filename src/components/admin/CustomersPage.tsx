@@ -46,6 +46,23 @@ export default function CustomersPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("last");
   const [open, setOpen] = useState<string | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [noteDraft, setNoteDraft] = useState("");
+  const [noteMsg, setNoteMsg] = useState("");
+  useEffect(() => {
+    db.from("customer_notes").select("phone, note").then(({ data }) => setNotes(Object.fromEntries((data ?? []).map((x) => [x.phone, x.note]))));
+  }, [db]);
+  async function saveNote(phone: string) {
+    const note = noteDraft.trim().slice(0, 200);
+    const { data: u } = await db.auth.getUser();
+    const { data: me } = await db.from("staff").select("name").eq("user_id", u.user?.id ?? "").maybeSingle();
+    const { error } = note
+      ? await db.from("customer_notes").upsert({ phone, note, updated_by_name: me?.name ?? "", updated_at: new Date().toISOString() })
+      : await db.from("customer_notes").delete().eq("phone", phone);
+    if (error) return setNoteMsg(error.message);
+    setNotes((cur) => ({ ...cur, [phone]: note }));
+    setNoteMsg(note ? "Note saved — it shows on this customer's orders." : "Note removed.");
+  }
   const [msg, setMsg] = useState(DEFAULT_MSG);
   const [copied, setCopied] = useState(false);
 
@@ -207,13 +224,14 @@ export default function CustomersPage() {
             {!loading && shown.length === 0 && <tr><td className="px-4 py-6 text-center text-muted" colSpan={6}>No customers here yet.</td></tr>}
             {shown.map((c) => (
               <Fragment key={c.phone}>
-                <tr className="cursor-pointer border-t border-line hover:bg-cream/60" onClick={() => setOpen(open === c.phone ? null : c.phone)}>
+                <tr className="cursor-pointer border-t border-line hover:bg-cream/60" onClick={() => { setOpen(open === c.phone ? null : c.phone); setNoteDraft(notes[c.phone] ?? ""); setNoteMsg(""); }}>
                   <td className="px-4 py-2">
                     <div className="font-medium">
                       {c.name}
                       {c.count >= 3 && <span className="ml-2 rounded bg-amber-100 px-1.5 text-xs text-amber-900">Regular</span>}
                     </div>
                     <div className="text-xs text-muted">{c.phone}</div>
+                    {notes[c.phone] && <div className="mt-0.5 text-xs font-medium text-amber-800">📌 {notes[c.phone]}</div>}
                   </td>
                   <td className="px-2 py-2 text-right font-semibold">{c.count}</td>
                   <td className="whitespace-nowrap px-2 py-2 text-right">{money(c.spent, cur)}</td>
@@ -231,6 +249,12 @@ export default function CustomersPage() {
                         Customer since {dateIn(c.first, tz)}
                         {c.address && <> · {c.address}</>}
                         {c.rewards > 0 && <> · {c.rewards} loyalty reward{c.rewards > 1 ? "s" : ""} used</>}
+                      </div>
+                      <div className="mb-3 flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <input className="input min-w-0 flex-1 py-1.5 text-sm" placeholder="📌 Note about this customer, e.g. allergic to nuts, VIP" maxLength={200}
+                          value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} aria-label={`Note for ${c.name}`} />
+                        <button type="button" className="btn-ghost py-1.5 text-sm" onClick={() => saveNote(c.phone)}>Save note</button>
+                        {noteMsg && <span className="text-xs text-ok">{noteMsg}</span>}
                       </div>
                       <ul className="space-y-1">
                         {c.orders.slice(0, 8).map((o) => (

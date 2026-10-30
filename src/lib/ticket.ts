@@ -23,11 +23,13 @@ function kitchenTicket(o: Order, s: Pick<Settings, "timezone">) {
   return `
   <div class="ticket">
     <div style="text-align:center" class="big">KITCHEN · #${o.order_no}</div>
+    ${o.edited_at ? `<div class="big" style="text-align:center;background:#000;color:#fff">** UPDATED ORDER **</div>` : ""}
     <div style="text-align:center">${o.order_type === "pickup" ? "PICKUP" : "DELIVERY"}${o.zone_name ? ` · ${esc(o.zone_name)}` : ""} · ${esc(timeShort(o.created_at, s.timezone))}</div>
     ${o.scheduled_for ? `<div class="big" style="text-align:center;border:2px solid #000;margin-top:4px">FOR ${esc(fmtWhen(o.scheduled_for, s.timezone).toUpperCase())}</div>` : ""}
     <hr/>
     <table>${rows}</table>
     ${o.notes ? `<hr/><div class="big">NOTE: ${esc(o.notes)}</div>` : ""}
+    ${o.customer_note ? `<hr/><div class="big">CUSTOMER: ${esc(o.customer_note)}</div>` : ""}
     <div>${o.payment_status === "paid" ? "PAID" : "CASH"}</div>
     <hr/>
     <div>${esc(o.customer_name)}</div>
