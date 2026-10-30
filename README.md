@@ -253,6 +253,19 @@ Settings → Hours → **Late-order alert** (default 30 min, 0 = off). An order 
 - A green 💬 button on the menu opens a WhatsApp chat with the shop phone (Settings → General; can be turned off).
 - **📌 Customer notes** ("allergic to nuts", "VIP"): add from the 📌 button on an order card or on the Customers page. The note shows on every order from that number and prints on the kitchen ticket.
 
+## WhatsApp orders
+
+**Send WhatsApp chats to the website.** Settings → WhatsApp → *Get WhatsApp chats ordering on the website* has ready-made **greeting**, **away** and **/menu quick reply** messages with your menu link (tap Copy, paste into WhatsApp Business → Business tools), and a **menu QR code** to download for flyers, food bags and your WhatsApp status.
+
+**Orders typed in WhatsApp, phoned in or at the door.** Orders screen → **+ New order** (owner, manager, cook):
+- pick 💬 WhatsApp / 📞 Phone / 🚶 Walk-in, type the mobile number — a returning customer's name, address and area fill in, with their 📌 note and a warning if the number is blocked;
+- tap dishes (options supported), add notes or a promo code, **Place order**;
+- then **Send confirmation & tracking link** opens WhatsApp with the order number, total and tracking page.
+
+Staff orders skip the website-only checks (opening hours, minimum order, map pin, order limits, blocked numbers) but use the same prices, delivery fees, stock limits, loyalty and promo rules. They show on the Orders screen as "💬 WhatsApp order · by <name>", print, go to drivers, and count in Sales (split by channel), Customers and the CSV export.
+
+**WhatsApp ordering bot (not built).** Taking orders automatically inside WhatsApp needs Meta's WhatsApp Cloud API (business verification, usually moving the number off the WhatsApp Business app) and is charged per message. Worth it only if WhatsApp orders become a large share.
+
 ## Ideas for later
 
 Fully automatic WhatsApp messages (WhatsApp Cloud API), combo deals, ingredient stock, recurring expenses, and an Android phone + Bluetooth printer setup via RawBT.

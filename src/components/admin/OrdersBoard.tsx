@@ -282,6 +282,7 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
           {live ? "Live" : "Connecting…"}
         </span>
         <span className="flex-1" />
+        <Link href="/admin/new-order" className="btn py-1.5 text-sm" data-testid="new-order-btn">+ New order</Link>
         {!soundOn && (
           <button className="btn-ghost text-sm" onClick={enableSound}>🔔 Turn on new-order sound</button>
         )}
@@ -411,8 +412,13 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
                 </div>
                 <span className="rounded-full bg-cream px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[o.status]}</span>
               </header>
-              {(blocked.has(o.customer_phone) || (o.first_order && !isDone(o)) || lateBy(o) > 0 || o.edited_at || o.cancel_reason) && (
+              {(blocked.has(o.customer_phone) || (o.first_order && !isDone(o)) || lateBy(o) > 0 || o.edited_at || o.cancel_reason || (o.source && o.source !== "web")) && (
                 <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
+                  {o.source && o.source !== "web" && (
+                    <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-emerald-900" data-testid="source-badge">
+                      {o.source === "whatsapp" ? "💬 WhatsApp" : o.source === "phone" ? "📞 Phone" : "🚶 Walk-in"} order{o.created_by_name ? ` · by ${o.created_by_name}` : ""}
+                    </span>
+                  )}
                   {lateBy(o) > 0 && <span className="animate-pulse rounded-md bg-red-600 px-2 py-0.5 text-white" data-testid="late-badge">⏰ Late by {lateBy(o)} min</span>}
                   {o.edited_at && <span className="rounded-md bg-violet-100 px-2 py-0.5 text-violet-900" title={o.edit_note}>✏️ Updated{o.edit_note ? ` · ${o.edit_note}` : ""}</span>}
                   {o.cancel_reason && <span className="rounded-md bg-cream px-2 py-0.5 text-red-800" data-testid="cancelled-badge">Cancelled by {o.cancelled_by_name || "staff"}: {o.cancel_reason}</span>}

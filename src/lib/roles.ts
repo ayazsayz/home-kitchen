@@ -23,9 +23,13 @@ export const NAV: { href: string; label: string; roles: Role[] }[] = [
 
 export const homeFor = (r: Role) => (r === "driver" ? "/admin/driver" : "/admin");
 
+/** Pages reached from a button rather than the menu bar. */
+const EXTRA: { href: string; roles: Role[] }[] = [{ href: "/admin/new-order", roles: ["owner", "manager", "cook"] }];
+
 export function canOpen(role: Role, path: string) {
   if (role === "owner") return true;
   const p = path.replace(/\/+$/, "") || "/admin";
+  if (EXTRA.some((e) => e.roles.includes(role) && (p === e.href || p.startsWith(e.href + "/")))) return true;
   return NAV.some((n) => n.roles.includes(role) && (p === n.href || (n.href !== "/admin" && p.startsWith(n.href + "/"))));
 }
 
