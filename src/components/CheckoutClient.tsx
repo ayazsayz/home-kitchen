@@ -465,6 +465,9 @@ export default function CheckoutClient({
       {belowMin && <p className="text-sm text-brand-dark">{zone ? t("minOrderZone", { zone: zone.name, amount: money(minOrder, c) }) : t("minOrder", { amount: money(minOrder, c) })}</p>}
       {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 
+      <p className="text-center text-xs text-muted">
+        {t("agreeTerms")} <a href="/legal#terms" target="_blank" className="underline">{t("terms")}</a> · <a href="/legal#privacy" target="_blank" className="underline">{t("privacy")}</a>
+      </p>
       <button className="btn w-full py-3 text-lg" disabled={busy || belowMin || !availability.canOrder}>
         {busy
           ? pay === "card" ? t("openingPayment") : t("placing")

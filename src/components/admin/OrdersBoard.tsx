@@ -8,6 +8,7 @@ import { NOTIFY_STATUSES, renderMessage, whatsappLink } from "@/lib/whatsapp";
 import { fmtWhen } from "@/lib/schedule";
 import { mapsLink } from "@/lib/maps";
 import InstallPrompt from "@/components/InstallPrompt";
+import EditOrder from "./EditOrder";
 import type { Role } from "@/lib/roles";
 import { LOW_RATING } from "@/lib/reviews";
 import Link from "next/link";
@@ -42,6 +43,47 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
   const [drivers, setDrivers] = useState<{ user_id: string; name: string }[]>([]);
   const [lowReviews, setLowReviews] = useState<{ id: string; rating: number; comment: string; customer_name: string; orders: { order_no: number } | null }[]>([]);
   const canManage = role === "owner" || role === "manager";
+  const [editing, setEditing] = useState<Order | null>(null);
+  const [notice, setNotice] = useState("");
+  const [noticeWa, setNoticeWa] = useState("");
+  const [notes, setNotes] = useState<Record<string, string>>({}); // customer notes by phone
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 15000); // keeps "late" badges current
+    return () => clearInterval(t);
+  }, []);
+  const loadNotes = useCallback(
+    () => db.from("customer_notes").select("phone, note").then(({ data }) => setNotes(Object.fromEntries((data ?? []).filter((x) => x.note).map((x) => [x.phone, x.note])))),
+    [db],
+  );
+  useEffect(() => {
+    loadNotes();
+  }, [loadNotes]);
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
+  async function editNote(o: Order) {
+    const v = prompt(`Note about ${o.customer_name || o.customer_phone} (shown on all their orders, e.g. "allergic to nuts"). Leave empty to remove.`, notes[o.customer_phone] ?? "");
+    if (v === null) return;
+    const note = v.trim().slice(0, 200);
+    setNotes((cur) => ({ ...cur, [o.customer_phone]: note }));
+    const { data: u } = await db.auth.getUser();
+    const { data: me } = await db.from("staff").select("name").eq("user_id", u.user?.id ?? "").maybeSingle();
+    if (note) await db.from("customer_notes").upsert({ phone: o.customer_phone, note, updated_by_name: me?.name ?? "", updated_at: new Date().toISOString() });
+    else await db.from("customer_notes").delete().eq("phone", o.customer_phone);
+    loadNotes();
+  }
+  async function cancelOrder(o: Order) {
+    const reason = prompt(`Cancel order #${o.order_no}? Type the reason (e.g. "customer called to cancel"):`);
+    if (reason === null) return;
+    if (!reason.trim()) return alert("Please give a reason.");
+    const res = await fetch(`/api/admin/orders/${o.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "cancel", reason }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) return alert(d.error || "Could not cancel");
+    setNotice(`Order #${o.order_no} cancelled.`);
+    setNoticeWa(waLink({ ...o, status: "rejected" }, "rejected"));
+    load();
+  }
   const [blocked, setBlocked] = useState<Set<string>>(new Set());
   const loadBlocked = useCallback(
     () => db.from("blocked_phones").select("phone").then(({ data }) => setBlocked(new Set((data ?? []).map((x) => x.phone)))),
@@ -65,6 +107,8 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
   }, [db, role]);
   const audio = useRef<AudioContext | null>(null);
   const known = useRef<Set<string>>(new Set());
+  const notesRef = useRef<Record<string, string>>({});
+  const lateAlerted = useRef<Set<string>>(new Set());
   const printerRef = useRef(printer);
   printerRef.current = printer;
 
@@ -116,7 +160,7 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
         .eq("id", o.id)
         .is("printed_at", null)
         .select("id");
-      if (data?.length) await printOrder(o, s, pref.mode);
+      if (data?.length) await printOrder({ ...o, customer_note: notesRef.current[o.customer_phone] }, s, pref.mode);
     },
     [db],
   );
@@ -195,6 +239,20 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
   }
 
   const now = Date.now();
+  const lateMin = settings?.late_minutes ?? 0;
+  /** Minutes an order is overdue (0 = on time). ASAP: late_minutes after it was placed; scheduled: past its time. */
+  const lateBy = (o: Order) => {
+    if (!lateMin || !["new", "accepted", "preparing"].includes(o.status)) return 0;
+    const due = o.scheduled_for ? +new Date(o.scheduled_for) : +new Date(o.created_at) + lateMin * 60000;
+    return now > due ? Math.ceil((now - due) / 60000) : 0;
+  };
+  // Beep once when an order becomes late (if the sound is on).
+  const lateIds = orders.filter((o) => lateBy(o) > 0).map((o) => o.id);
+  const freshLate = lateIds.filter((id) => !lateAlerted.current.has(id));
+  if (freshLate.length) {
+    freshLate.forEach((id) => lateAlerted.current.add(id));
+    if (soundOn) setTimeout(beep, 0);
+  }
   const shown = orders
     .filter((o) =>
       tab === "active"
@@ -300,6 +358,22 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
 
       {shown.length === 0 && <p className="py-12 text-center text-muted">No orders here yet.</p>}
 
+      {notice && (
+        <p className="flex flex-wrap items-center gap-2 rounded-xl bg-green-50 px-3 py-2 text-sm text-green-800" role="status">
+          {notice}
+          {noticeWa && <a href={noticeWa} target="_blank" rel="noreferrer" className="font-semibold underline">💬 Tell the customer on WhatsApp</a>}
+        </p>
+      )}
+      {editing && (
+        <EditOrder order={editing} cur={c} onClose={() => setEditing(null)}
+          onSaved={(m, total) => {
+            const o = editing;
+            setEditing(null);
+            setNotice(m);
+            setNoticeWa(whatsappLink(o.customer_phone, `Hi ${o.customer_name.split(" ")[0]}, we've updated your order #${o.order_no} as discussed. New total: ${money(total, c)}. ${window.location.origin}/order/${o.id}`));
+            load();
+          }} />
+      )}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {shown.map((o) => {
           const next = NEXT[o.status];
@@ -315,7 +389,8 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
           return (
             <article
               key={o.id}
-              className={`card flex flex-col p-4 ${o.status === "new" ? "border-brand ring-2 ring-brand/30" : ""}`}
+              className={`card flex flex-col p-4 ${lateBy(o) ? "border-red-500 bg-red-50 ring-2 ring-red-400" : o.status === "new" ? "border-brand ring-2 ring-brand/30" : ""}`}
+              data-late={lateBy(o) ? "1" : undefined}
             >
               <header className="flex items-start justify-between">
                 <div>
@@ -336,8 +411,11 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
                 </div>
                 <span className="rounded-full bg-cream px-2.5 py-1 text-xs font-semibold">{STATUS_LABEL[o.status]}</span>
               </header>
-              {(blocked.has(o.customer_phone) || (o.first_order && !isDone(o))) && (
+              {(blocked.has(o.customer_phone) || (o.first_order && !isDone(o)) || lateBy(o) > 0 || o.edited_at || o.cancel_reason) && (
                 <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-semibold">
+                  {lateBy(o) > 0 && <span className="animate-pulse rounded-md bg-red-600 px-2 py-0.5 text-white" data-testid="late-badge">⏰ Late by {lateBy(o)} min</span>}
+                  {o.edited_at && <span className="rounded-md bg-violet-100 px-2 py-0.5 text-violet-900" title={o.edit_note}>✏️ Updated{o.edit_note ? ` · ${o.edit_note}` : ""}</span>}
+                  {o.cancel_reason && <span className="rounded-md bg-cream px-2 py-0.5 text-red-800" data-testid="cancelled-badge">Cancelled by {o.cancelled_by_name || "staff"}: {o.cancel_reason}</span>}
                   {blocked.has(o.customer_phone) && <span className="rounded-md bg-red-600 px-2 py-0.5 text-white" data-testid="blocked-badge">🚫 Blocked number</span>}
                   {o.first_order && !isDone(o) && (
                     <span className="rounded-md bg-sky-100 px-2 py-0.5 text-sky-900" data-testid="first-order-badge">🆕 First order — call to confirm</span>
@@ -365,6 +443,9 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
                 </p>
               )}
               {o.notes && <p className="mb-2 rounded-lg bg-amber-50 px-2 py-1 text-sm">📝 {o.notes}</p>}
+              {notes[o.customer_phone] && (
+                <p className="mb-2 rounded-lg border border-amber-300 bg-amber-100 px-2 py-1 text-sm font-medium" data-testid="customer-note">📌 {notes[o.customer_phone]}</p>
+              )}
 
               <div className="text-sm">
                 <div className="font-medium">{o.customer_name}</div>
@@ -421,13 +502,22 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
                     Reject
                   </button>
                 )}
+                {["new", "accepted", "preparing", "ready"].includes(o.status) && o.payment_status !== "paid" && (
+                  <button className="btn-ghost" onClick={() => setEditing(o)} aria-label={`Edit order ${o.order_no}`}>✏️ Edit</button>
+                )}
+                {["accepted", "preparing", "ready", "out_for_delivery"].includes(o.status) && (
+                  <button className="btn-ghost text-red-700" onClick={() => cancelOrder(o)} aria-label={`Cancel order ${o.order_no}`}>Cancel order</button>
+                )}
+                {canManage && (
+                  <button className="btn-ghost" onClick={() => editNote(o)} aria-label={`Customer note for order ${o.order_no}`} title="Note about this customer">📌</button>
+                )}
                 {canManage && !blocked.has(o.customer_phone) && ["new", "rejected"].includes(o.status) && (
                   <button className="btn-ghost text-red-700" onClick={() => blockNumber(o)} aria-label={`Block number for order ${o.order_no}`}>
                     🚫 Block
                   </button>
                 )}
                 {settings && (
-                  <button className="btn-ghost" title="Print" onClick={() => printOrder(o, settings, printer.mode)}>
+                  <button className="btn-ghost" title="Print" onClick={() => printOrder({ ...o, customer_note: notes[o.customer_phone] }, settings, printer.mode)}>
                     🖨 Print
                   </button>
                 )}

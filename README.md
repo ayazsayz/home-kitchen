@@ -229,6 +229,30 @@ Settings → **Fake orders**:
 
 Settings → Hours → **Holidays & days off**: add dates (e.g. Eid, with an optional reason shown to customers). On those days the menu shows "Closed for Eid. Back Mon 2 Nov." and no orders are taken for them. If pre-orders are on, customers can still book for after the holiday.
 
+## Edit or cancel an order
+
+On the Orders screen (owner, manager, cook):
+- **✏️ Edit** (new → ready, cash orders): change quantities, remove dishes or add dishes (with options). Dishes already on the order keep the price the customer saw; the total, promo/loyalty discount and delivery fee are recalculated. The card shows "✏️ Updated", the customer's order page shows the change, and printed tickets say "UPDATED ORDER". A button opens WhatsApp with the new total for the customer.
+- **Cancel order** (accepted → on the way): asks for a reason. The order moves to Rejected marked "Cancelled by … : reason" and is left out of sales, profit, stock and loyalty. The customer's page says it was cancelled.
+- Card-paid orders can't be edited: cancel (and refund in your payment dashboard) and place a new one.
+
+## Backups
+
+Settings → **Summary & backup** → **Backup**: download a ZIP of everything (orders, dishes, customers' notes, expenses, reviews, settings…) as CSV files that open in Excel, or email it now. With "Email me a backup every Sunday" on, the nightly summary job also emails the ZIP on Sundays (needs the daily summary email set up). Save the files somewhere safe, e.g. Google Drive.
+
+## Privacy & terms
+
+`/legal` is a plain-language privacy policy and ordering terms, filled in from your shop details (name, phone, address, VAT, payment methods). It's linked in the menu footer and at checkout. Add your own extra rules in Settings → General → *Extra terms*. It's a sensible starting point, not legal advice.
+
+## Late-order alert
+
+Settings → Hours → **Late-order alert** (default 30 min, 0 = off). An order that isn't ready that long after it was placed — or a pre-order past its time — turns red on the Orders screen with "⏰ Late by N min" and beeps once (when the sound is on).
+
+## WhatsApp button & customer notes
+
+- A green 💬 button on the menu opens a WhatsApp chat with the shop phone (Settings → General; can be turned off).
+- **📌 Customer notes** ("allergic to nuts", "VIP"): add from the 📌 button on an order card or on the Customers page. The note shows on every order from that number and prints on the kitchen ticket.
+
 ## Ideas for later
 
 Fully automatic WhatsApp messages (WhatsApp Cloud API), combo deals, ingredient stock, recurring expenses, and an Android phone + Bluetooth printer setup via RawBT.
