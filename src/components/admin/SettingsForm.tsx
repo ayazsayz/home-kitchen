@@ -12,6 +12,7 @@ import { withSettingDefaults } from "@/lib/settings";
 import HoursSettings from "./HoursSettings";
 import ClosuresSettings from "./ClosuresSettings";
 import BlockedNumbers from "./BlockedNumbers";
+import WhatsAppSetup from "./WhatsAppSetup";
 import { REGIONS, regionOf } from "@/lib/region";
 import { tzLabel, validTz } from "@/lib/tz";
 import { BRAND_PRESETS, DEFAULT_BRAND, brandStyle, isTooLight, normalizeHex } from "@/lib/brand";
@@ -390,6 +391,8 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
       </>
     ),
     messages: (
+      <>
+        <WhatsAppSetup s={s} />
       <div className="card p-4">
         <div className="font-semibold">WhatsApp messages</div>
         <p className="mt-2 text-sm text-muted">
@@ -414,6 +417,7 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
           ))}
         </div>
       </div>
+      </>
     ),
     loyalty: <LoyaltySettings s={s} set={set} />,
     reports: <SummarySettings s={s} set={set} />,

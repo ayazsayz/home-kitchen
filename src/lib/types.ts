@@ -184,6 +184,8 @@ export type Order = {
   cancelled_by_name?: string;
   edited_at?: string | null;
   edit_note?: string;
+  source?: "web" | "whatsapp" | "phone" | "walkin";
+  created_by_name?: string;
   /** staff note about this customer (loaded on the Orders screen, not stored on the order) */
   customer_note?: string;
   subtotal: number;

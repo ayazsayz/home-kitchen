@@ -74,11 +74,12 @@ export default function SalesReport() {
   const profit = useMemo(() => dishProfit(orders.flatMap((o) => o.order_items ?? []), costs), [orders, costs]);
 
   function exportCsv() {
-    const head = ["order_no", "date", "status", "type", "customer", "phone", "items", "area", "payment", "scheduled_for", "promo_code", "discount", "subtotal", "delivery_fee", "total"];
+    const head = ["order_no", "date", "status", "source", "type", "customer", "phone", "items", "area", "payment", "scheduled_for", "promo_code", "discount", "subtotal", "delivery_fee", "total"];
     const rows = orders.map((o) => [
       o.order_no,
       dateTimeFull(o.created_at, tz),
       o.status,
+      o.source ?? "web",
       o.order_type,
       o.customer_name,
       o.customer_phone,
@@ -128,6 +129,20 @@ export default function SalesReport() {
         <Stat label="Discounts" value={money(stats.discounts, cur)} />
       </div>
       <p className="text-xs text-muted">Excludes rejected and unpaid card orders. Includes orders still in progress.</p>
+      {orders.some((o) => o.source && o.source !== "web") && (
+        <div className="flex flex-wrap gap-2 text-sm" data-testid="by-channel">
+          {(["web", "whatsapp", "phone", "walkin"] as const).map((k) => {
+            const list = orders.filter((o) => (o.source ?? "web") === k);
+            if (!list.length) return null;
+            const label = { web: "🌐 Website", whatsapp: "💬 WhatsApp", phone: "📞 Phone", walkin: "🚶 Walk-in" }[k];
+            return (
+              <span key={k} className="rounded-full border border-line bg-paper px-3 py-1">
+                {label}: <b>{list.length}</b> · {money(list.reduce((s, o) => s + o.total, 0), cur)}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-muted">Loading…</p>

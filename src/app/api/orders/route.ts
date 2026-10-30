@@ -1,5 +1,6 @@
 import { isLang } from "@/lib/i18n";
 import { clientHash, screenOrder } from "@/lib/safety";
+import { currentStaff } from "@/lib/require-staff";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { currencyOf, money, roundMoney } from "@/lib/format";
@@ -29,6 +30,8 @@ type Body = {
   location?: { lat: number; lng: number } | null;
   items?: { id: string; qty: number; choiceIds?: string[] }[];
   lang?: string;
+  /** set by the staff "New order" screen */
+  source?: "web" | "whatsapp" | "phone" | "walkin";
 };
 
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
@@ -55,6 +58,12 @@ export async function POST(req: Request) {
   if (!lines.length) return bad("Your cart is empty");
   if (lines.length > 50 || lines.some((l) => l.qty < 1 || l.qty > 50)) return bad("Invalid quantity");
 
+  // Orders entered by staff (WhatsApp / phone / walk-in) skip the customer-only checks:
+  // opening hours, order limits, blocked numbers, map pin and minimum order.
+  const source = body.source && ["whatsapp", "phone", "walkin"].includes(body.source) ? body.source : "web";
+  const staff = source === "web" ? null : await currentStaff();
+  if (source !== "web" && (!staff || !["owner", "manager", "cook"].includes(staff.role))) return bad("Please sign in as staff", 401);
+
   const db = supabaseAdmin();
 
   const { data: settingsRow, error: sErr } = await db.from("settings").select("*").eq("id", 1).single();
@@ -63,8 +72,8 @@ export async function POST(req: Request) {
   const cur = currencyOf(settings);
   const phone = normalisePhone(rawPhone, settings.phone_country_code).slice(0, 20);
   if (!validPhone(phone)) return bad("Please enter a valid mobile number");
-  const hash = clientHash(req);
-  const screen = await screenOrder(db, phone, hash, { phone: settings.max_orders_phone, device: settings.max_orders_device });
+  const hash = staff ? "" : clientHash(req);
+  const screen = await screenOrder(db, phone, hash, staff ? { phone: 0, device: 0, ignoreBlock: true } : { phone: settings.max_orders_phone, device: settings.max_orders_device });
   if (screen.error) return bad(screen.error, screen.status);
   const round = (n: number) => roundMoney(n, cur.decimals);
 
@@ -83,7 +92,7 @@ export async function POST(req: Request) {
     if (!slot) return bad("That time is no longer available. Please pick another time.", 409);
     if (slot.full) return bad("That time just filled up. Please pick another time.", 409);
     scheduledFor = slot.start;
-  } else if (!avail.asap) {
+  } else if (!avail.asap && !staff) {
     if (avail.slots.some((x) => !x.full)) return bad("We're not taking orders for right now. Please choose a time.", 409);
     if (avail.closure) return bad(`We're closed${avail.closure.note ? ` for ${avail.closure.note}` : ""} right now. Please order again when we're back.`);
     return bad(settings.closed_message || "We are closed right now");
@@ -98,7 +107,7 @@ export async function POST(req: Request) {
     Number.isFinite(loc.lng) &&
     Math.abs(loc.lat) <= 90 &&
     Math.abs(loc.lng) <= 180;
-  if (type === "delivery" && settings.require_pin && !hasPin) return bad("Please pin your location on the map");
+  if (type === "delivery" && settings.require_pin && !hasPin && !staff) return bad("Please pin your location on the map");
 
   // ----- delivery zone -----
   let fee = 0;
@@ -168,7 +177,7 @@ export async function POST(req: Request) {
   }
 
   const subtotal = round(orderItems.reduce((s, i) => s + i.line_total, 0));
-  if (minOrder > 0 && subtotal < minOrder) {
+  if (minOrder > 0 && subtotal < minOrder && !staff) {
     return bad(`Minimum order${zoneName ? ` for ${zoneName}` : ""} is ${money(minOrder, cur)}`);
   }
 
@@ -223,6 +232,8 @@ export async function POST(req: Request) {
       lang: isLang(body.lang) ? body.lang : "en",
       first_order: screen.firstOrder,
       client_hash: hash,
+      source,
+      created_by_name: staff?.name ?? "",
     })
     .select("id, order_no")
     .single();
