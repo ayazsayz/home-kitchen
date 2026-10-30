@@ -45,6 +45,9 @@ export type Settings = {
   delivery_fee: number;
   min_order: number;
   eta_minutes: number | null; // "delivery in about N min" on the menu
+  closures: Closure[]; // holidays / days off
+  max_orders_phone: number; // per 10 min, 0 = no limit
+  max_orders_device: number;
   vat_percent: number;
   trn: string;
   is_open: boolean;
@@ -131,6 +134,9 @@ export type MenuItem = {
   tags?: DishTag[];
 };
 
+/** Days the shop is closed regardless of weekly hours (dates in the shop's time zone, inclusive). */
+export type Closure = { from: string; to: string; note: string };
+
 /** Badges the owner can tick on a dish. "suggest" = offered at checkout. */
 export type DishTag = "spicy" | "chef" | "new" | "suggest";
 
@@ -169,6 +175,7 @@ export type Order = {
   picked_up_at?: string | null;
   delivered_at?: string | null;
   lang?: Lang;
+  first_order?: boolean; // first order from this number (call to confirm)
   subtotal: number;
   delivery_fee: number;
   total: number;

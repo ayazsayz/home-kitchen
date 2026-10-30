@@ -165,6 +165,9 @@ const en = {
   deliveryFeePill: "Delivery {amount}",
   goesWell: "Goes well with your order",
   added: "Added",
+  closedFor: "Closed for {note}",
+  closedDays: "Closed for a few days",
+  backOn: "Back {when}.",
   language: "Language",
   somethingWrong: "Something went wrong",
 };
@@ -323,6 +326,9 @@ const ar: Record<Key, string> = {
   deliveryFeePill: "التوصيل {amount}",
   goesWell: "يناسب طلبك",
   added: "تمت الإضافة",
+  closedFor: "مغلق بمناسبة {note}",
+  closedDays: "مغلق لبضعة أيام",
+  backOn: "نعود {when}.",
   language: "اللغة",
   somethingWrong: "حدث خطأ ما",
 };
@@ -480,6 +486,9 @@ const ur: Record<Key, string> = {
   deliveryFeePill: "ڈیلیوری {amount}",
   goesWell: "آپ کے آرڈر کے ساتھ خوب جچے گا",
   added: "شامل ہو گیا",
+  closedFor: "{note} کی وجہ سے بند",
+  closedDays: "چند دن کے لیے بند",
+  backOn: "{when} دوبارہ کھلیں گے۔",
   language: "زبان",
   somethingWrong: "کچھ غلط ہو گیا",
 };

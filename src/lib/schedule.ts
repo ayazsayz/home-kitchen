@@ -1,6 +1,6 @@
 import { LOCALE } from "./i18n";
 import type { Lang } from "./types";
-import type { Settings, TimeRange, WeeklyHours } from "./types";
+import type { Closure, Settings, TimeRange, WeeklyHours } from "./types";
 
 import { DEFAULT_TZ, addDays, zoned, zonedInstant } from "./tz";
 
@@ -9,7 +9,7 @@ import { DEFAULT_TZ, addDays, zoned, zonedInstant } from "./tz";
  * Works the same on the server and in the browser, including zones with daylight saving.
  */
 const DAY = 24 * 60;
-type TzSettings = { timezone?: string };
+type TzSettings = { timezone?: string; closures?: Closure[] };
 const tzOf = (s: TzSettings | undefined) => s?.timezone || DEFAULT_TZ;
 const dowOf = (ymd: string) => new Date(`${ymd}T00:00:00Z`).getUTCDay();
 
@@ -39,12 +39,21 @@ export function hasHours(hours: WeeklyHours | undefined) {
   return !!hours && [0, 1, 2, 3, 4, 5, 6].some((d) => dayRanges(hours, d).length > 0);
 }
 
-/** Absolute open intervals overlapping [from, from + days]. */
-function intervals(hours: WeeklyHours, from: Date, days: number, tz: string): [Date, Date][] {
+/** The holiday/closure covering a date (YYYY-MM-DD in the shop's time zone), if any. */
+export function closureOn(ymd: string, closures: Closure[] | undefined): Closure | undefined {
+  return closures?.find((c) => c.from && c.to && ymd >= c.from && ymd <= c.to);
+}
+
+/** Closure in force right now (shop time zone). */
+export const currentClosure = (s: TzSettings, now = new Date()) => closureOn(zoned(now, tzOf(s)).ymd, s.closures);
+
+/** Absolute open intervals overlapping [from, from + days], skipping closure days. */
+function intervals(hours: WeeklyHours, from: Date, days: number, tz: string, closures?: Closure[]): [Date, Date][] {
   const start = zoned(from, tz).ymd;
   const out: [Date, Date][] = [];
   for (let i = -1; i <= days; i++) {
     const ymd = addDays(start, i);
+    if (closureOn(ymd, closures)) continue;
     for (const [o, c] of dayRanges(hours, dowOf(ymd))) out.push([zonedInstant(ymd, o, tz), zonedInstant(ymd, c, tz)]);
   }
   return out.sort((a, b) => +a[0] - +b[0]);
@@ -57,14 +66,23 @@ export function withinHours(hours: WeeklyHours, at: Date, tz = DEFAULT_TZ) {
 /** Open right now for immediate (ASAP) orders? `is_open` is the master switch. */
 export function isOpenNow(s: Pick<Settings, "is_open" | "auto_hours" | "hours"> & TzSettings, now = new Date()) {
   if (!s.is_open) return false;
+  if (currentClosure(s, now)) return false;
   if (!s.auto_hours || !hasHours(s.hours)) return true;
   return withinHours(s.hours, now, tzOf(s));
 }
 
 /** Next time the kitchen opens (from the weekly hours), or null. */
 export function nextOpening(s: Pick<Settings, "hours"> & TzSettings, now = new Date()): Date | null {
-  if (!hasHours(s.hours)) return null;
-  const next = intervals(s.hours, now, 7, tzOf(s)).find(([a, b]) => a > now || (now >= a && now < b));
+  const tz = tzOf(s);
+  if (!hasHours(s.hours)) {
+    // No weekly hours: open again the morning after the closure ends.
+    let c = currentClosure(s, now);
+    if (!c) return null;
+    let day = addDays(c.to, 1);
+    while ((c = closureOn(day, s.closures))) day = addDays(c.to, 1); // back-to-back closures
+    return zonedInstant(day, 0, tz);
+  }
+  const next = intervals(s.hours, now, 45, tz, s.closures).find(([a, b]) => a > now || (now >= a && now < b));
   if (!next) return null;
   return next[0] > now ? next[0] : now;
 }
@@ -91,6 +109,10 @@ export function fmtDay(d: Date, tz = DEFAULT_TZ, now = new Date(), lang: Lang = 
 export const fmtWhen = (iso: string, tz = DEFAULT_TZ, now = new Date(), lang: Lang = "en") =>
   `${fmtDay(new Date(iso), tz, now, lang)}${lang === "en" ? "," : "،"} ${fmtTime(new Date(iso), tz, lang)}`;
 
+/** "Mon 2 Nov" when it's midnight (back after a closure), otherwise "Mon 2 Nov, 9:00 AM". */
+export const fmtBack = (iso: string, tz = DEFAULT_TZ, lang: Lang = "en") =>
+  zoned(new Date(iso), tz).minutes === 0 ? fmtDay(new Date(iso), tz, new Date(), lang) : fmtWhen(iso, tz, new Date(), lang);
+
 /**
  * Bookable delivery/pickup slots (labels in the shop's time zone). A slot is offered if it starts at least `lead_minutes`
  * from now, inside opening hours, within `days_ahead` days. `taken` maps slot ISO → orders already booked.
@@ -107,7 +129,7 @@ export function buildSlots(
   const lastDay = addDays(zoned(now, tz).ymd, Math.max(0, s.days_ahead));
   const seen = new Set<string>();
   const slots: Slot[] = [];
-  for (const [a, b] of intervals(s.hours, now, s.days_ahead + 1, tz)) {
+  for (const [a, b] of intervals(s.hours, now, s.days_ahead + 1, tz, s.closures)) {
     for (let t = a.getTime(); t < b.getTime(); t += step) {
       if (t < earliest) continue;
       const d = new Date(t);

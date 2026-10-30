@@ -1,4 +1,5 @@
 "use client";
+import { IMAGE_SIZES, shrinkImage } from "@/lib/image";
 import { LANGS } from "@/lib/i18n";
 import type { Lang } from "@/lib/types";
 import { useEffect, useMemo, useState } from "react";
@@ -9,19 +10,22 @@ import { DEFAULT_TEMPLATES, NOTIFY_STATUSES, PLACEHOLDERS } from "@/lib/whatsapp
 import { STATUS_LABEL, type Order, type OrderStatus, type Settings } from "@/lib/types";
 import { withSettingDefaults } from "@/lib/settings";
 import HoursSettings from "./HoursSettings";
+import ClosuresSettings from "./ClosuresSettings";
+import BlockedNumbers from "./BlockedNumbers";
 import { REGIONS, regionOf } from "@/lib/region";
 import { tzLabel, validTz } from "@/lib/tz";
 import { BRAND_PRESETS, DEFAULT_BRAND, brandStyle, isTooLight, normalizeHex } from "@/lib/brand";
 
 const TABS = [
   { key: "general", icon: "🏠", label: "General", hint: "Name, contact details, logo and colours." },
-  { key: "hours", icon: "🕒", label: "Hours", hint: "When you're open and pre-order time slots." },
+  { key: "hours", icon: "🕒", label: "Hours", hint: "When you're open, pre-order time slots, holidays and days off." },
   { key: "delivery", icon: "🛵", label: "Delivery", hint: "Delivery fee, minimum order, areas and the map pin." },
   { key: "payments", icon: "💳", label: "Payments & tax", hint: "Card payments, VAT and TRN." },
   { key: "region", icon: "🌐", label: "Region & language", hint: "Country, time zone, currency and customer languages." },
   { key: "messages", icon: "💬", label: "WhatsApp", hint: "Messages sent to customers when an order changes." },
   { key: "loyalty", icon: "⭐", label: "Loyalty", hint: "Stamp card rewards for regular customers." },
   { key: "reports", icon: "📋", label: "Daily summary", hint: "Nightly email with the day's numbers." },
+  { key: "safety", icon: "🛡️", label: "Fake orders", hint: "Blocked numbers and limits on repeated orders." },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 const isTab = (x: string): x is TabKey => TABS.some((t) => t.key === x);
@@ -113,6 +117,13 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
         address: s.address,
         delivery_fee: Number(s.delivery_fee) || 0,
         min_order: Number(s.min_order) || 0,
+        max_orders_phone: Math.min(50, Math.max(0, Math.round(Number(s.max_orders_phone)) || 0)),
+        max_orders_device: Math.min(50, Math.max(0, Math.round(Number(s.max_orders_device)) || 0)),
+        closures: s.closures
+          .filter((c) => c.from && c.to)
+          .map((c) => (c.to < c.from ? { ...c, from: c.to, to: c.from } : c))
+          .map((c) => ({ ...c, note: c.note.trim().slice(0, 40) }))
+          .sort((a, b) => a.from.localeCompare(b.from)),
         eta_minutes:
           s.eta_minutes === null || (s.eta_minutes as unknown) === "" ? null : Math.min(240, Math.max(5, Math.round(Number(s.eta_minutes)) || 30)),
         vat_percent: Number(s.vat_percent) || 0,
@@ -203,7 +214,12 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
         <BrandingSettings s={s} set={set} />
       </>
     ),
-    hours: <HoursSettings s={s} set={set} />,
+    hours: (
+      <>
+        <HoursSettings s={s} set={set} />
+        <ClosuresSettings s={s} set={set} />
+      </>
+    ),
     delivery: (
       <>
         <div className="card grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
@@ -368,6 +384,30 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
     ),
     loyalty: <LoyaltySettings s={s} set={set} />,
     reports: <SummarySettings s={s} set={set} />,
+    safety: (
+      <>
+        <div className="card space-y-3 p-4">
+          <div>
+            <div className="font-semibold">⏱ Order limits</div>
+            <p className="text-sm text-muted">
+              Stops someone placing a pile of prank orders. Counted over 10 minutes; 0 = no limit. First orders from a new number are marked 🆕 on the
+              Orders screen so you can call to confirm.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Max orders per phone number">
+              <input id="max-orders-phone" className="input" type="number" min={0} max={50} value={s.max_orders_phone}
+                onChange={(e) => set("max_orders_phone", e.target.value as unknown as number)} />
+            </Field>
+            <Field label="Max orders per phone/computer">
+              <input id="max-orders-device" className="input" type="number" min={0} max={50} value={s.max_orders_device}
+                onChange={(e) => set("max_orders_device", e.target.value as unknown as number)} />
+            </Field>
+          </div>
+        </div>
+        <BlockedNumbers countryCode={s.phone_country_code} tz={s.timezone} />
+      </>
+    ),
   };
 
   return (
@@ -827,13 +867,17 @@ function BrandingSettings({ s, set }: { s: Settings; set: <K extends keyof Setti
   const [err, setErr] = useState("");
   const color = normalizeHex(s.brand_color) ?? DEFAULT_BRAND;
 
-  async function upload(kind: "logo" | "cover", file: File) {
-    if (file.size > 5 * 1024 * 1024) return setErr("Please use an image under 5 MB");
+  async function upload(kind: "logo" | "cover", original: File) {
     setBusy(kind);
     setErr("");
+    const file = await shrinkImage(original, kind === "logo" ? IMAGE_SIZES.logo : IMAGE_SIZES.cover, { keepAlpha: kind === "logo" });
+    if (file.size > 5 * 1024 * 1024) {
+      setBusy("");
+      return setErr("Please use an image under 5 MB");
+    }
     const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "");
     const path = `branding/${kind}-${Date.now()}.${ext}`;
-    const { error } = await db.storage.from("menu").upload(path, file, { cacheControl: "31536000", upsert: false });
+    const { error } = await db.storage.from("menu").upload(path, file, { cacheControl: "31536000", upsert: false, contentType: file.type });
     setBusy("");
     if (error) return setErr(error.message);
     set(kind === "logo" ? "logo_url" : "cover_url", db.storage.from("menu").getPublicUrl(path).data.publicUrl);

@@ -18,7 +18,7 @@ Next.js 15 + Supabase. Customers order from their phone (cash on delivery or pic
 | `/admin/promos` | Staff | Promo codes: % off, AED off, free delivery, limits, dates, usage |
 | `/admin/sales` | Staff | Daily summary (share on WhatsApp), revenue, best sellers, dish profit, by-day, CSV export |
 | `/admin/expenses` | Staff | Record shopping & running costs, receipt photos, profit & cash-in-hand report, CSV |
-| `/admin/settings` | Owner | Tabs: General (name, branding), Hours, Delivery (fee, areas, map pin), Payments & tax, Region & language, WhatsApp, Loyalty, Daily summary. One Save for all tabs; test print |
+| `/admin/settings` | Owner | Tabs: General (name, branding), Hours (incl. holidays), Delivery (fee, areas, map pin, delivery time), Payments & tax, Region & language, WhatsApp, Loyalty, Daily summary, Fake orders (limits, blocked numbers). One Save for all tabs; test print |
 
 ## Setup (≈15 min)
 
@@ -208,6 +208,26 @@ Settings → **Customer languages**: tick العربية and/or اردو and pic
 - **"Goes well with your order"** at checkout: dishes you tick ✨ *Suggest at checkout* (e.g. fries, sauce, drinks), or otherwise cheaper extras from other categories. Only dishes without options, added in one tap.
 
 **Photo tips:** daylight near a window, 45° angle, same plain background, square crop, under ~1 MB.
+
+## Photos
+
+Photos are shrunk on the phone/computer before upload (dish photos to 1200 px, cover 1800 px, logo 512 px, receipts 1600 px), so a 5 MB phone photo becomes about 150–300 KB and the menu loads fast. No need to resize anything yourself.
+
+## Link preview (WhatsApp, Instagram, Facebook)
+
+Sharing the shop link shows a card with your logo, name, tagline and cover photo (from Settings → General), plus "Order now". It updates when you change those settings. WhatsApp caches previews for a while, so a change may take time to show on links already sent.
+
+## Fake-order protection
+
+Settings → **Fake orders**:
+- **Order limits:** at most N orders per phone number and per phone/computer in 10 minutes (defaults 3 and 6; 0 = off). Extra orders are asked to wait or call.
+- **Blocked numbers:** these can't order online and are asked to call you. Add or unblock them here, or tap **🚫 Block** on a new/rejected order on the Orders screen (owner/manager).
+- The Orders screen marks **🆕 First order — call to confirm** for a number's first ever order.
+- Devices are recognised by an anonymous code; IP addresses are never stored.
+
+## Holidays & days off
+
+Settings → Hours → **Holidays & days off**: add dates (e.g. Eid, with an optional reason shown to customers). On those days the menu shows "Closed for Eid. Back Mon 2 Nov." and no orders are taken for them. If pre-orders are on, customers can still book for after the holiday.
 
 ## Ideas for later
 
