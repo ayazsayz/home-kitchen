@@ -28,7 +28,7 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
   const [picking, setPicking] = useState<MenuItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [done, setDone] = useState<{ id: string; no: number; total: number; name: string; phone: string } | null>(null);
+  const [done, setDone] = useState<{ id: string; no: number; total: number; name: string; phone: string; type: "delivery" | "pickup" } | null>(null);
 
   const zone = zones.find((z) => z.id === form.zoneId);
   const fee = type === "delivery" ? (zones.length ? zone?.fee ?? 0 : Number(settings.delivery_fee) || 0) : 0;
@@ -55,7 +55,6 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
         address: f.address || prev.address,
         zoneId: f.zoneId || zones.find((z) => z.name === prev.zone_name)?.id || "",
       }));
-      if (prev.order_type === "pickup" && source !== "walkin") setType("pickup");
     }
     setKnown({ orders: count ?? 0, note: note?.note ?? "", blocked: !!blocked });
   }
@@ -94,7 +93,7 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
     setBusy(false);
     if (!res.ok) return setErr(d.error || "Could not place the order");
     const { data: row } = await db.from("orders").select("total").eq("id", d.id).single();
-    setDone({ id: d.id, no: d.order_no, total: Number(row?.total ?? subtotal + fee), name: form.name, phone: normalisePhone(form.phone, settings.phone_country_code) });
+    setDone({ id: d.id, no: d.order_no, total: Number(row?.total ?? subtotal + fee), name: form.name, phone: normalisePhone(form.phone, settings.phone_country_code), type });
   }
 
   function reset() {
@@ -106,12 +105,17 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
 
   if (done) {
     const link = `${window.location.origin}/order/${done.id}`;
-    const msg = `Hi ${done.name.split(" ")[0]}, thanks for your order! 🙏 Order #${done.no} from ${settings.name} — total ${money(done.total, cur)}${type === "delivery" ? " (cash on delivery)" : ""}. Track it here: ${link}`;
+    const msg = `Hi ${done.name.split(" ")[0]}, thanks for your order! 🙏 Order #${done.no} from ${settings.name} — total ${money(done.total, cur)}${done.type === "delivery" ? " (cash on delivery)" : " (pay on pickup)"}. Track it here: ${link}`;
     return (
       <div className="mx-auto max-w-md space-y-4 py-6 text-center" data-testid="new-order-done">
         <div className="text-5xl">✅</div>
         <h1 className="text-2xl font-bold">Order #{done.no} placed</h1>
         <p className="text-muted">Total {money(done.total, cur)}. It&apos;s on the Orders screen now (and prints if auto-print is on).</p>
+        <p className="rounded-xl bg-cream px-3 py-2 text-sm" data-testid="done-type">
+          {done.type === "delivery"
+            ? "🛵 Delivery — it appears on the drivers' Deliveries screen once the kitchen marks it Ready."
+            : "🏃 Pickup — the customer collects it, so it won't go to drivers."}
+        </p>
         <a className="btn w-full bg-[#25D366] hover:bg-[#1da851]" href={whatsappLink(done.phone, msg)} target="_blank" rel="noreferrer">
           💬 Send confirmation & tracking link
         </a>
@@ -133,7 +137,7 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
         <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Order came in by">
           {SOURCES.map(([k, label]) => (
             <button key={k} type="button" role="radio" aria-checked={source === k}
-              onClick={() => { setSource(k); if (k === "walkin") setType("pickup"); }}
+              onClick={() => { setSource(k); setType(k === "walkin" ? "pickup" : "delivery"); }}
               className={`rounded-xl border px-2 py-2.5 text-sm font-medium ${source === k ? "border-brand bg-brand/10 text-brand-dark" : "border-line bg-paper"}`}>
               {label}
             </button>
@@ -163,7 +167,7 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
             {(["delivery", "pickup"] as const).map((k) => (
               <button key={k} type="button" onClick={() => setType(k)}
                 className={`rounded-xl border px-3 py-2 font-medium ${type === k ? "border-brand bg-brand/10 text-brand-dark" : "border-line bg-paper"}`}>
-                {k === "delivery" ? "Delivery" : "Pickup"}
+                {k === "delivery" ? "🛵 Delivery" : "🏃 Pickup"}
               </button>
             ))}
           </div>
@@ -216,7 +220,12 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
       </section>
 
       <aside className="card h-fit space-y-3 p-4 lg:sticky lg:top-4">
-        <h2 className="font-semibold">Order</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold">Order</h2>
+          <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${type === "delivery" ? "bg-sky-100 text-sky-900" : "bg-amber-100 text-amber-900"}`} data-testid="order-type-pill">
+            {type === "delivery" ? "🛵 Delivery" : "🏃 Pickup"}
+          </span>
+        </div>
         {lines.length === 0 ? (
           <p className="text-sm text-muted">Tap dishes to add them.</p>
         ) : (
