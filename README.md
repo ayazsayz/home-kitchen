@@ -43,6 +43,8 @@ Silent auto-printing (no print dialog) uses Chrome's kiosk printing. On the kitc
 
 Close all Chrome windows first, then open via that shortcut. In `/admin`, tick **Auto-print new orders on this device** and click **Turn on new-order sound**. Use **Settings → Test print** to check the layout.
 
+**Cut off on one side?** On the Orders screen tap **🖨 Paper & width** → **Print width test**, and pick the widest box whose two side lines both printed (most 80 mm printers: 64–72 mm). You can also move the print left/right and change the text size. These settings are saved on that computer only.
+
 Only one device should have auto-print on; if two do, the order is still printed once (the first device claims it).
 
 Printing options per device: kitchen ticket (big quantities, no prices), customer receipt (prices, address, VAT), or both on one job.

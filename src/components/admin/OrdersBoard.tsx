@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { currencyOf, money, normalise, normaliseOrder, timeShort } from "@/lib/format";
-import { printOrder, type PrintMode } from "@/lib/ticket";
+import { DEFAULT_LAYOUT, WIDTHS, getLayout, printOrder, printWidthTest, saveLayout, type PrintLayout, type PrintMode } from "@/lib/ticket";
 import { optionsText } from "@/lib/options";
 import { NOTIFY_STATUSES, renderMessage, whatsappLink } from "@/lib/whatsapp";
 import { fmtWhen } from "@/lib/schedule";
@@ -45,6 +45,15 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
   const [lowReviews, setLowReviews] = useState<{ id: string; rating: number; comment: string; customer_name: string; orders: { order_no: number } | null }[]>([]);
   const canManage = role === "owner" || role === "manager";
   const [editing, setEditing] = useState<Order | null>(null);
+  const [layout, setLayout] = useState<PrintLayout>(DEFAULT_LAYOUT);
+  const [showLayout, setShowLayout] = useState(false);
+  useEffect(() => setLayout(getLayout()), []);
+  const changeLayout = (p: Partial<PrintLayout>) => {
+    const next = { ...layout, ...p };
+    if (p.paper && !WIDTHS[p.paper].includes(next.width)) next.width = p.paper === 58 ? 44 : 64;
+    setLayout(next);
+    saveLayout(next);
+  };
   const [notice, setNotice] = useState("");
   const [noticeWa, setNoticeWa] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({}); // customer notes by phone
@@ -341,12 +350,60 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
           <option value="receipt">Receipt only</option>
         </select>
         <span className="text-muted">Turn this on only on the computer connected to the printer.</span>
+        <button type="button" className="text-brand underline" onClick={() => setShowLayout(!showLayout)} data-testid="print-layout-toggle">
+          🖨 Paper & width
+        </button>
         <span className="hidden h-5 w-px bg-line md:block" />
         <label className="flex items-center gap-2 font-medium">
           <input type="checkbox" className="h-4 w-4 accent-ok" checked={waAuto} onChange={(e) => saveWaAuto(e.target.checked)} />
           Open WhatsApp message when I change status
         </label>
       </div>
+      {showLayout && (
+        <div className="card space-y-3 p-3 text-sm" data-testid="print-layout">
+          <p className="text-muted">
+            If tickets are cut off on one side, print the <b>width test</b> and pick the widest box whose two side lines both printed. Saved on this
+            device only.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="space-y-1">
+              <span className="block text-xs text-muted">Paper</span>
+              <select className="rounded-lg border border-line bg-paper px-2 py-1" value={layout.paper} aria-label="Paper width"
+                onChange={(e) => changeLayout({ paper: Number(e.target.value) as 80 | 58 })}>
+                <option value={80}>80 mm</option>
+                <option value={58}>58 mm</option>
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="block text-xs text-muted">Print width</span>
+              <select className="rounded-lg border border-line bg-paper px-2 py-1" value={layout.width} aria-label="Print width"
+                onChange={(e) => changeLayout({ width: Number(e.target.value) })}>
+                {WIDTHS[layout.paper].map((w) => <option key={w} value={w}>{w} mm</option>)}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="block text-xs text-muted">Move</span>
+              <select className="rounded-lg border border-line bg-paper px-2 py-1" value={layout.shift} aria-label="Move left or right"
+                onChange={(e) => changeLayout({ shift: Number(e.target.value) })}>
+                {[-4, -3, -2, -1, 0, 1, 2, 3, 4].map((m) => <option key={m} value={m}>{m === 0 ? "Centre" : m < 0 ? `${-m} mm left` : `${m} mm right`}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="block text-xs text-muted">Text</span>
+              <select className="rounded-lg border border-line bg-paper px-2 py-1" value={layout.scale} aria-label="Text size"
+                onChange={(e) => changeLayout({ scale: Number(e.target.value) })}>
+                <option value={0.9}>Small</option><option value={1}>Normal</option><option value={1.15}>Large</option>
+              </select>
+            </label>
+            <button type="button" className="btn-ghost py-1.5" onClick={() => printWidthTest(layout)}>Print width test</button>
+            {settings && orders[0] && (
+              <button type="button" className="btn-ghost py-1.5" onClick={() => printOrder({ ...orders[0], customer_note: notes[orders[0].customer_phone] }, settings, printer.mode)}>
+                Reprint latest order
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2">
         {(
