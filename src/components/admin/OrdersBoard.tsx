@@ -9,6 +9,7 @@ import { fmtWhen } from "@/lib/schedule";
 import { mapsLink } from "@/lib/maps";
 import InstallPrompt from "@/components/InstallPrompt";
 import EditOrder from "./EditOrder";
+import { fmtQty, isLow } from "@/lib/inventory";
 import type { Role } from "@/lib/roles";
 import { LOW_RATING } from "@/lib/reviews";
 import Link from "next/link";
@@ -47,6 +48,7 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
   const [notice, setNotice] = useState("");
   const [noticeWa, setNoticeWa] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({}); // customer notes by phone
+  const [lowStock, setLowStock] = useState<{ id: string; name: string; unit: string; qty: number }[]>([]);
   const [, setTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 15000); // keeps "late" badges current
@@ -168,6 +170,8 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
   const load = useCallback(
     async (opts?: { notify?: boolean }) => {
       const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
+      db.from("stock_items").select("id, name, unit, qty, low_level, active").eq("active", true)
+        .then(({ data }) => setLowStock((data ?? []).map((x) => ({ ...x, qty: Number(x.qty), low_level: Number(x.low_level) })).filter(isLow)));
       db.from("reviews").select("id, rating, comment, customer_name, orders(order_no)").lte("rating", LOW_RATING).eq("seen", false)
         .order("created_at", { ascending: false }).limit(5)
         .then(({ data }) => setLowReviews((data ?? []) as unknown as typeof lowReviews));
@@ -305,6 +309,14 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {lowStock.length > 0 && (
+        <div className="card flex flex-wrap items-center gap-2 border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" data-testid="low-stock-banner">
+          <b>📦 Low stock:</b>
+          <span className="min-w-0 flex-1">{lowStock.map((i) => `${i.name} (${fmtQty(i.qty, i.unit)})`).join(", ")}</span>
+          {canManage && <Link href="/admin/stock" className="font-semibold underline">Open stock</Link>}
         </div>
       )}
 

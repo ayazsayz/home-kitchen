@@ -3,7 +3,7 @@ export type Role = "owner" | "manager" | "cook" | "driver";
 
 export const ROLES: { role: Role; label: string; can: string }[] = [
   { role: "owner", label: "Owner", can: "Everything, including sales, settings and staff" },
-  { role: "manager", label: "Manager", can: "Orders, menu, customers, reviews, promos, expenses, deliveries" },
+  { role: "manager", label: "Manager", can: "Orders, menu, customers, reviews, promos, expenses, stock & suppliers, deliveries" },
   { role: "cook", label: "Cook", can: "Orders screen only" },
   { role: "driver", label: "Driver", can: "Their deliveries only" },
 ];
@@ -17,6 +17,7 @@ export const NAV: { href: string; label: string; roles: Role[] }[] = [
   { href: "/admin/promos", label: "Promos", roles: ["owner", "manager"] },
   { href: "/admin/sales", label: "Sales", roles: ["owner"] },
   { href: "/admin/expenses", label: "Expenses", roles: ["owner", "manager"] },
+  { href: "/admin/stock", label: "Stock", roles: ["owner", "manager"] },
   { href: "/admin/staff", label: "Staff", roles: ["owner"] },
   { href: "/admin/settings", label: "Settings", roles: ["owner"] },
 ];

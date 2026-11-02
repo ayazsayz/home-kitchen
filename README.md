@@ -18,6 +18,7 @@ Next.js 15 + Supabase. Customers order from their phone (cash on delivery or pic
 | `/admin/promos` | Staff | Promo codes: % off, AED off, free delivery, limits, dates, usage |
 | `/admin/sales` | Staff | Daily summary (share on WhatsApp), revenue, best sellers, dish profit, by-day, CSV export |
 | `/admin/expenses` | Staff | Record shopping & running costs, receipt photos, profit & cash-in-hand report, CSV |
+| `/admin/stock` | Owner, manager | Stock levels, waste & counts, purchases from suppliers (WhatsApp, receive → stock + expense), supplier balances & payments |
 | `/admin/settings` | Owner | Tabs: General (name, branding), Hours (incl. holidays), Delivery (fee, areas, map pin, delivery time), Payments & tax, Region & language, WhatsApp, Loyalty, Daily summary, Fake orders (limits, blocked numbers). One Save for all tabs; test print |
 
 ## Setup (≈15 min)
@@ -265,6 +266,20 @@ Settings → Hours → **Late-order alert** (default 30 min, 0 = off). An order 
 Staff orders skip the website-only checks (opening hours, minimum order, map pin, order limits, blocked numbers) but use the same prices, delivery fees, stock limits, loyalty and promo rules. They show on the Orders screen as "💬 WhatsApp order · by <name>", print, go to drivers, and count in Sales (split by channel), Customers and the CSV export.
 
 **WhatsApp ordering bot (not built).** Taking orders automatically inside WhatsApp needs Meta's WhatsApp Cloud API (business verification, usually moving the number off the WhatsApp Business app) and is charged per message. Worth it only if WhatsApp orders become a large share.
+
+## Stock, recipes & suppliers
+
+**Stock** page (owner, manager) — three tabs:
+
+- **📦 Stock:** your ingredients and packaging (unit, "warn at" level, cost per unit, opening stock). Shows what's in stock, what's low, how many days it will last (from the last 14 days of use) and the stock value. **± Adjust** records waste/spoilage or a correction; **📋 Count stock** lets you enter what you actually have and saves only the differences. Tap an item to see its history. **Order these** turns the low items into a purchase.
+- **🧾 Purchases:** create a purchase (supplier, items, quantity, price — the last price paid is filled in) and send it to the supplier on WhatsApp in one tap. When the goods arrive, **✓ Received**: fix the real quantities/prices, enter what you paid now. That adds the stock, updates each item's average cost, records the **Expense** automatically, and puts anything unpaid on the supplier's balance.
+- **🚚 Suppliers:** contact, total bought, **what you owe** (received purchases − payments), **Pay** to record a payment, and a statement of purchases and payments.
+
+**Recipes:** Menu → edit dish → *Recipe* — what goes into one portion (e.g. 1 bun + 0.15 kg chicken + 1 box). Then:
+- when an order is **completed**, the ingredients are taken off stock automatically (once per order; walk-in/WhatsApp orders too);
+- the dish's **cost** is worked out from the recipe and kept up to date when ingredient prices change, so **Sales → Dish profit** uses real costs.
+
+**Low stock** shows on the Stock page and as a banner on the Orders screen (also for cooks). Dishes are not switched off automatically — you decide. Manual counts correct anything the recipes miss.
 
 ## Ideas for later
 
