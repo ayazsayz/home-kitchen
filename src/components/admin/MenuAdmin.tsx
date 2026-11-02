@@ -7,6 +7,8 @@ import { useShop } from "@/lib/use-currency";
 import { dateIn, dayStartIso, todayIn } from "@/lib/tz";
 import type { Category, DishTag, I18nText, Lang, MenuItem } from "@/lib/types";
 import { LANGS } from "@/lib/i18n";
+import { fmtQty, recipeCost } from "@/lib/inventory";
+import type { StockItem } from "@/lib/types";
 import OptionGroupsEditor from "./OptionGroupsEditor";
 
 const TAGS: { key: DishTag; label: string }[] = [
@@ -33,6 +35,9 @@ export default function MenuAdmin() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [langs, setLangs] = useState<Lang[]>([]); // extra customer languages turned on in Settings
+  const [stock, setStock] = useState<StockItem[]>([]);
+  const [recipes, setRecipes] = useState<{ menu_item_id: string; stock_item_id: string; qty: number }[]>([]);
+  const [recipe, setRecipe] = useState<{ key: string; stock_item_id: string; qty: string }[]>([]); // recipe of the dish being edited
 
   const load = useCallback(async () => {
     const [c, i, st] = await Promise.all([
@@ -41,6 +46,9 @@ export default function MenuAdmin() {
       db.from("settings").select("languages").eq("id", 1).single(),
     ]);
     setLangs(((st.data?.languages ?? []) as Lang[]).filter((l) => l === "ar" || l === "ur"));
+    const [si, rl] = await Promise.all([db.from("stock_items").select("*").eq("active", true).order("name"), db.from("recipe_lines").select("*")]);
+    setStock((si.data ?? []).map((x) => normalise(x) as StockItem));
+    setRecipes((rl.data ?? []).map((x) => ({ ...x, qty: Number(x.qty) })));
     setCats(c.data ?? []);
     setItems((i.data ?? []).map((x) => ({ ...normalise(x), option_groups: x.option_groups ?? [], tags: x.tags ?? [] }) as MenuItem));
     if (!ready) return;
@@ -133,11 +141,33 @@ export default function MenuAdmin() {
         .map((g) => ({ ...g, name: g.name.trim(), choices: g.choices.filter((c) => c.name.trim()) }))
         .filter((g) => g.name && g.choices.length),
     };
-    const { error } = id
-      ? await db.from("menu_items").update(payload).eq("id", id)
-      : await db.from("menu_items").insert(payload);
+    // With a recipe, the dish cost comes from its ingredients.
+    const lines = recipe.filter((l) => l.stock_item_id && Number(l.qty) > 0).map((l) => ({ stock_item_id: l.stock_item_id, qty: Number(l.qty) }));
+    if (lines.length) payload.cost = recipeCost(lines, stock);
+    const res = id
+      ? await db.from("menu_items").update(payload).eq("id", id).select("id").single()
+      : await db.from("menu_items").insert(payload).select("id").single();
+    if (res.error) {
+      setBusy(false);
+      return setErr(res.error.message);
+    }
+    const dishId = res.data.id as string;
+    const had = recipes.some((r) => r.menu_item_id === dishId);
+    if (had || lines.length) {
+      await db.from("recipe_lines").delete().eq("menu_item_id", dishId);
+      if (lines.length) {
+        const merged = Object.values(lines.reduce<Record<string, { stock_item_id: string; qty: number }>>((acc, l) => {
+          acc[l.stock_item_id] = { stock_item_id: l.stock_item_id, qty: (acc[l.stock_item_id]?.qty ?? 0) + l.qty };
+          return acc;
+        }, {}));
+        const { error: rerr } = await db.from("recipe_lines").insert(merged.map((l) => ({ ...l, menu_item_id: dishId })));
+        if (rerr) {
+          setBusy(false);
+          return setErr(rerr.message);
+        }
+      }
+    }
     setBusy(false);
-    if (error) return setErr(error.message);
     setDraft(null);
     load();
   }
@@ -177,7 +207,7 @@ export default function MenuAdmin() {
       <section className="space-y-5">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Menu</h1>
-          <button className="btn" onClick={() => setDraft({ ...EMPTY, category_id: cats[0]?.id ?? null })}>+ Add dish</button>
+          <button className="btn" onClick={() => { setDraft({ ...EMPTY, category_id: cats[0]?.id ?? null }); setRecipe([]); }}>+ Add dish</button>
         </div>
 
         {groups.map(({ c, list }) => (
@@ -193,7 +223,7 @@ export default function MenuAdmin() {
                   ) : (
                     <div className="h-10 w-10 rounded-lg bg-cream" />
                   )}
-                  <button className="min-w-0 flex-1 text-left" onClick={() => setDraft(i)}>
+                  <button className="min-w-0 flex-1 text-left" onClick={() => { setDraft(i); setRecipe(recipes.filter((r) => r.menu_item_id === i.id).map((r) => ({ key: crypto.randomUUID(), stock_item_id: r.stock_item_id, qty: String(r.qty) }))); }}>
                     <div className="font-medium">{i.name}</div>
                     <div className="truncate text-sm text-muted">
                       {i.option_groups.length > 0 && (
@@ -269,7 +299,8 @@ export default function MenuAdmin() {
               </div>
               <div>
                 <label className="label" htmlFor="dish-cost">Cost to make</label>
-                <input id="dish-cost" className="input" type="number" min={0} step="any" placeholder="optional" value={draft.cost ?? ""}
+                <input id="dish-cost" className="input disabled:bg-cream disabled:text-muted" type="number" min={0} step="any" placeholder="optional" value={draft.cost ?? ""}
+                  disabled={recipe.some((l) => l.stock_item_id && Number(l.qty) > 0)} title="Worked out from the recipe below"
                   onChange={(e) => setDraft({ ...draft, cost: e.target.value === "" ? null : (e.target.value as unknown as number) })} />
               </div>
               <div className="col-span-2 sm:col-span-1">
@@ -313,6 +344,46 @@ export default function MenuAdmin() {
                 onChange={(e) => setDraft({ ...draft, daily_limit: e.target.value === "" ? null : (e.target.value as unknown as number) })} />
               <p className="mt-1 text-xs text-muted">How many you can make per day. The menu shows &quot;only N left&quot; and marks it sold out at 0. Resets every day.</p>
             </div>
+            <fieldset className="space-y-2 rounded-xl border border-line p-3" data-testid="recipe-editor">
+              <legend className="px-1 text-sm font-semibold">🧾 Recipe — what goes into one portion</legend>
+              {stock.length === 0 ? (
+                <p className="text-xs text-muted">Add your ingredients on the <a className="text-brand underline" href="/admin/stock">Stock</a> page first. Then stock goes down automatically when this dish is sold, and its cost is worked out for you.</p>
+              ) : (
+                <>
+                  {recipe.map((l, idx) => {
+                    const it = stock.find((s) => s.id === l.stock_item_id);
+                    return (
+                      <div key={l.key} className="grid grid-cols-[minmax(0,1fr)_6rem_1.5rem] items-center gap-2">
+                        <select className="input py-1.5 text-sm" value={l.stock_item_id} aria-label={`Ingredient ${idx + 1}`}
+                          onChange={(e) => setRecipe(recipe.map((x) => (x.key === l.key ? { ...x, stock_item_id: e.target.value } : x)))}>
+                          <option value="">Choose ingredient…</option>
+                          {stock.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.unit})</option>)}
+                        </select>
+                        <input className="input py-1.5 text-sm" type="number" min={0} step="any" placeholder={it?.unit ?? "qty"} value={l.qty} aria-label={`Ingredient qty ${idx + 1}`}
+                          onChange={(e) => setRecipe(recipe.map((x) => (x.key === l.key ? { ...x, qty: e.target.value } : x)))} />
+                        <button type="button" className="text-red-600" aria-label={`Remove ingredient ${idx + 1}`} onClick={() => setRecipe(recipe.filter((x) => x.key !== l.key))}>✕</button>
+                      </div>
+                    );
+                  })}
+                  <button type="button" className="text-sm text-brand" onClick={() => setRecipe([...recipe, { key: crypto.randomUUID(), stock_item_id: "", qty: "" }])}>+ Add ingredient</button>
+                  {recipe.some((l) => l.stock_item_id && Number(l.qty) > 0) && (() => {
+                    const lines = recipe.filter((l) => l.stock_item_id && Number(l.qty) > 0).map((l) => ({ stock_item_id: l.stock_item_id, qty: Number(l.qty) }));
+                    const c = recipeCost(lines, stock);
+                    const missing = lines.filter((l) => !stock.find((s) => s.id === l.stock_item_id)?.avg_cost).length;
+                    return (
+                      <p className="text-sm" data-testid="recipe-cost">
+                        Cost from recipe: <b>{money(c, cur)}</b>
+                        {Number(draft.price) > 0 && <> · margin <b>{margin(Number(draft.price), c)}%</b></>}
+                        <span className="block text-xs text-muted">
+                          {lines.map((l) => { const s = stock.find((x) => x.id === l.stock_item_id); return `${s?.name} ${fmtQty(l.qty, s?.unit)}`; }).join(" + ")}.
+                          Saved as the dish cost, and updated when ingredient prices change.{missing ? ` ${missing} ingredient${missing > 1 ? "s have" : " has"} no price yet.` : ""}
+                        </span>
+                      </p>
+                    );
+                  })()}
+                </>
+              )}
+            </fieldset>
             <OptionGroupsEditor value={draft.option_groups} onChange={(option_groups) => setDraft({ ...draft, option_groups })} />
             <fieldset>
               <legend className="label">Badges</legend>

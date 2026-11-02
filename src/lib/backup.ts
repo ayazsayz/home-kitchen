@@ -7,6 +7,7 @@ import type { Settings } from "./types";
 const TABLES = [
   "orders", "order_items", "menu_items", "categories", "delivery_zones", "promo_codes", "expenses",
   "reviews", "customer_notes", "blocked_phones", "cash_handovers", "staff",
+  "stock_items", "stock_moves", "recipe_lines", "suppliers", "purchases", "purchase_lines", "supplier_payments",
 ] as const;
 
 function csv(rows: Record<string, unknown>[]) {

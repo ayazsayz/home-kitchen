@@ -258,3 +258,56 @@ export type CashHandover = {
   received_by_name: string;
   created_at: string;
 };
+
+// ---------- Inventory & suppliers ----------
+export type StockItem = {
+  id: string;
+  name: string;
+  unit: string;
+  category: string;
+  qty: number;
+  low_level: number;
+  avg_cost: number;
+  active: boolean;
+  sort: number;
+  created_at: string;
+};
+export type StockMoveKind = "purchase" | "sale" | "waste" | "count" | "adjust";
+export type StockMove = {
+  id: string;
+  stock_item_id: string;
+  change: number;
+  kind: StockMoveKind;
+  ref_id: string | null;
+  note: string;
+  created_by_name: string;
+  created_at: string;
+};
+export type RecipeLine = { menu_item_id: string; stock_item_id: string; qty: number };
+export type Supplier = { id: string; name: string; phone: string; notes: string; active: boolean; created_at: string };
+export type PurchaseStatus = "ordered" | "received" | "cancelled";
+export type PurchaseLine = { id: string; purchase_id: string; stock_item_id: string; qty: number; unit_price: number };
+export type Purchase = {
+  id: string;
+  purchase_no: number;
+  supplier_id: string | null;
+  supplier_name: string;
+  status: PurchaseStatus;
+  total: number;
+  note: string;
+  expense_id: string | null;
+  received_on: string | null;
+  created_by_name: string;
+  created_at: string;
+  purchase_lines?: PurchaseLine[];
+};
+export type SupplierPayment = {
+  id: string;
+  supplier_id: string;
+  amount: number;
+  paid_with: "cash" | "card" | "bank";
+  paid_on: string;
+  note: string;
+  created_by_name: string;
+  created_at: string;
+};
