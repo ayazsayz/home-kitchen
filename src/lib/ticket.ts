@@ -63,11 +63,11 @@ function receipt(o: Order, s: Settings, qr: string) {
     <table>${rows}</table>
     <hr/>
     <table>
-      <tr><td>Subtotal</td><td class="amt wide">${money(o.subtotal, c)}</td></tr>
-      ${o.delivery_fee > 0 ? `<tr><td>Delivery</td><td class="amt wide">${money(o.delivery_fee, c)}</td></tr>` : ""}
-      ${o.discount > 0 ? `<tr><td>${o.promo_code === "LOYALTY" ? "Loyalty reward" : `Discount${o.promo_code ? ` (${esc(o.promo_code)})` : ""}`}</td><td class="amt wide">-${money(o.discount, c)}</td></tr>` : ""}
-      <tr><td class="big">TOTAL</td><td class="big amt wide">${money(o.total, c)}</td></tr>
-      ${vat > 0 ? `<tr><td>Incl. VAT ${o.vat_percent}%</td><td class="amt wide">${money(vat, c)}</td></tr>` : ""}
+      <tr><td>Subtotal</td><td class="amt">${money(o.subtotal, c)}</td></tr>
+      ${o.delivery_fee > 0 ? `<tr><td>Delivery</td><td class="amt">${money(o.delivery_fee, c)}</td></tr>` : ""}
+      ${o.discount > 0 ? `<tr><td>${o.promo_code === "LOYALTY" ? "Loyalty reward" : `Discount${o.promo_code ? ` (${esc(o.promo_code)})` : ""}`}</td><td class="amt">-${money(o.discount, c)}</td></tr>` : ""}
+      <tr><td class="big">TOTAL</td><td class="big amt">${money(o.total, c)}</td></tr>
+      ${vat > 0 ? `<tr><td>Incl. VAT ${o.vat_percent}%</td><td class="amt">${money(vat, c)}</td></tr>` : ""}
     </table>
     <div class="big" style="text-align:center;margin-top:4px">${
       o.payment_status === "paid" ? "PAID BY CARD" : `CASH · COLLECT ${money(o.total, c)}`
@@ -118,15 +118,15 @@ function css(l: PrintLayout) {
   return `
   @page { size: ${l.paper}mm auto; margin: 0; }
   html, body { margin: 0; padding: 0; background: #fff; }
-  .ticket { box-sizing: border-box; width: ${l.width}mm; margin: 0 auto; padding: 2mm 0; position: relative; left: ${l.shift}mm;
-    font-family: ui-monospace, "Courier New", monospace; font-size: ${f(12)}; line-height: 1.35; color: #000;
+  .ticket { box-sizing: border-box; width: ${l.width}mm; margin: 0 auto; padding: 2mm 1.5mm 2mm 0; position: relative; left: ${l.shift}mm;
+    font-family: "Courier New", ui-monospace, monospace; font-size: ${f(12)}; line-height: 1.35; color: #000;
     overflow-wrap: anywhere; word-break: break-word; }
   .ticket .big { font-size: ${f(17)}; font-weight: 700; }
   .ticket hr { border: 0; border-top: 1px dashed #000; margin: 5px 0; }
-  .ticket table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .ticket table { width: 100%; border-collapse: collapse; }
   .ticket td { vertical-align: top; padding: 1px 0; }
-  .ticket td.amt { width: 30%; text-align: right; white-space: nowrap; }
-  .ticket td.amt.wide { width: 50%; }
+  /* Amounts take exactly the room they need (measured with the printer's font); names wrap. */
+  .ticket td.amt { width: 1%; text-align: right; white-space: nowrap; padding-left: 2mm; }
   .cut { page-break-after: always; break-after: page; height: 8mm; }
 `;
 }
