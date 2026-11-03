@@ -222,20 +222,26 @@ export default function PurchasesTab({ data, reload, draft, clearDraft }: InvPro
                         {active.map((i) => <option key={i.id} value={i.id}>{i.name} ({fmtQty(i.qty, i.unit)} left)</option>)}
                         <option value={NEW}>+ New item…</option>
                       </select>
-                      {l.stock_item_id === NEW && (
-                        <div className="flex gap-1">
-                          <input className="input min-w-0 flex-1 py-1.5 text-sm" placeholder="New item name, e.g. Burger buns" value={l.newName} aria-label={`New item name ${idx + 1}`}
-                            onChange={(e) => setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, newName: e.target.value } : x)) })} />
-                          <input className="input w-20 py-1.5 text-sm" list="po-units" value={l.newUnit} aria-label={`New item unit ${idx + 1}`}
-                            onChange={(e) => setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, newUnit: e.target.value } : x)) })} />
-                        </div>
-                      )}
                     </div>
                     <input className="input py-2" type="number" min={0} step="any" placeholder={l.stock_item_id === NEW ? l.newUnit || "qty" : it?.unit ?? "qty"} value={l.qty} aria-label={`Qty ${idx + 1}`}
                       onChange={(e) => setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, qty: e.target.value } : x)) })} />
                     <input className="input py-2" type="number" min={0} step="any" value={l.unit_price} aria-label={`Price ${idx + 1}`}
                       onChange={(e) => setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, unit_price: e.target.value } : x)) })} />
                     <button type="button" className="text-red-600" aria-label={`Remove line ${idx + 1}`} onClick={() => setForm({ ...form, lines: form.lines.filter((x) => x.key !== l.key) })}>✕</button>
+                      {l.stock_item_id === NEW && (
+                        <div className="col-span-4 grid grid-cols-[minmax(0,1fr)_6rem] gap-2 rounded-xl bg-cream p-2">
+                          <label className="min-w-0">
+                            <span className="mb-0.5 block text-xs text-muted">New item name</span>
+                            <input className="input py-2" placeholder="e.g. Burger buns" value={l.newName} aria-label={`New item name ${idx + 1}`} autoFocus
+                              onChange={(e) => setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, newName: e.target.value } : x)) })} />
+                          </label>
+                          <label className="min-w-0">
+                            <span className="mb-0.5 block text-xs text-muted">Unit</span>
+                            <input className="input py-2" list="po-units" value={l.newUnit} aria-label={`New item unit ${idx + 1}`}
+                              onChange={(e) => setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, newUnit: e.target.value } : x)) })} />
+                          </label>
+                        </div>
+                      )}
                   </div>
                 );
               })}
