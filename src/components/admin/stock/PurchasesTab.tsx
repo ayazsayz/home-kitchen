@@ -5,13 +5,14 @@ import { money, roundMoney } from "@/lib/format";
 import { todayIn, timeShort } from "@/lib/tz";
 import { whatsappLink } from "@/lib/whatsapp";
 import { normalisePhone } from "@/lib/region";
-import { fmtQty, lastPrices, purchaseMessage } from "@/lib/inventory";
+import { UNITS, fmtQty, lastPrices, purchaseMessage } from "@/lib/inventory";
 import type { Purchase } from "@/lib/types";
 import type { InvProps } from "./StockPage";
 import { Field, Modal } from "./StockTab";
 
-type Line = { key: string; id?: string; stock_item_id: string; qty: string; unit_price: string };
-const blank = (): Line => ({ key: crypto.randomUUID(), stock_item_id: "", qty: "", unit_price: "" });
+type Line = { key: string; id?: string; stock_item_id: string; qty: string; unit_price: string; newName?: string; newUnit?: string };
+const NEW = "__new"; // "+ New item…" typed straight into the purchase
+const blank = (newItem = false): Line => ({ key: crypto.randomUUID(), stock_item_id: newItem ? NEW : "", qty: "", unit_price: "", newName: "", newUnit: "pcs" });
 
 /** Purchase orders to suppliers: create, send on WhatsApp, receive (stock + expense + payment), cancel. */
 export default function PurchasesTab({ data, reload, draft, clearDraft }: InvProps & { draft: { supplierId?: string; itemIds?: string[] } | null; clearDraft: () => void }) {
@@ -53,10 +54,33 @@ export default function PurchasesTab({ data, reload, draft, clearDraft }: InvPro
     e.preventDefault();
     if (!form) return;
     setErr("");
-    const lines = form.lines.filter((l) => l.stock_item_id && Number(l.qty) > 0);
+    let lines = form.lines.filter((l) => l.stock_item_id && Number(l.qty) > 0);
     if (!lines.length) return setErr("Add at least one item with a quantity");
+    if (lines.some((l) => l.stock_item_id === NEW && !l.newName?.trim())) return setErr("Type a name for the new item");
     const sup = supplierOf(form.supplierId);
     setBusy(true);
+    // New items are added to Stock with 0 on hand; receiving the purchase adds the quantity.
+    const known = [...items];
+    for (const l of lines.filter((x) => x.stock_item_id === NEW)) {
+      const name = l.newName!.trim();
+      const existing = items.find((i) => i.name.trim().toLowerCase() === name.toLowerCase());
+      if (existing) {
+        l.stock_item_id = existing.id;
+        continue;
+      }
+      const { data: it, error: ierr } = await db
+        .from("stock_items")
+        .insert({ name, unit: (l.newUnit || "pcs").trim(), avg_cost: Math.max(0, Number(l.unit_price) || 0), sort: items.length })
+        .select("*")
+        .single();
+      if (ierr || !it) {
+        setBusy(false);
+        return setErr(ierr?.message ?? "Could not add the new item");
+      }
+      l.stock_item_id = it.id;
+      known.push({ ...it, qty: 0, low_level: 0, avg_cost: Number(it.avg_cost) });
+    }
+    lines = lines.map((l) => ({ ...l }));
     const { data: p, error } = await db
       .from("purchases")
       .insert({ supplier_id: sup?.id ?? null, supplier_name: sup?.name ?? "", status: "ordered", total: estTotal(lines), note: form.note.trim().slice(0, 300), created_by_name: data.me })
@@ -70,7 +94,7 @@ export default function PurchasesTab({ data, reload, draft, clearDraft }: InvPro
     setBusy(false);
     if (lerr) return setErr(lerr.message);
     setForm(null);
-    const text = purchaseMessage(settings.name, p, lines.map((l) => ({ stock_item_id: l.stock_item_id, qty: Number(l.qty) })), items, sup);
+    const text = purchaseMessage(settings.name, p, lines.map((l) => ({ stock_item_id: l.stock_item_id, qty: Number(l.qty) })), known, sup);
     setSent(sup?.phone ? { p: p as Purchase, link: whatsappLink(normalisePhone(sup.phone, settings.phone_country_code), text) } : { p: p as Purchase, link: "" });
     setMsg(`Purchase #${p.purchase_no} saved.`);
     reload();
@@ -130,9 +154,8 @@ export default function PurchasesTab({ data, reload, draft, clearDraft }: InvPro
           </button>
         ))}
         <span className="flex-1" />
-        <button type="button" className="btn py-1.5 text-sm" onClick={() => setForm({ supplierId: "", note: "", lines: [blank()] })} disabled={!active.length}>+ New purchase</button>
+        <button type="button" className="btn py-1.5 text-sm" onClick={() => setForm({ supplierId: "", note: "", lines: [blank(!active.length)] })}>+ New purchase</button>
       </div>
-      {!active.length && <p className="text-sm text-muted">Add stock items first (Stock tab).</p>}
       {msg && <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800" role="status">{msg}</p>}
       {sent?.link && (
         <a className="btn bg-[#25D366] hover:bg-[#1da851]" href={sent.link} target="_blank" rel="noreferrer" data-testid="po-whatsapp">💬 Send order #{sent.p.purchase_no} to {sent.p.supplier_name} on WhatsApp</a>
@@ -188,16 +211,27 @@ export default function PurchasesTab({ data, reload, draft, clearDraft }: InvPro
               {form.lines.map((l, idx) => {
                 const it = itemOf(l.stock_item_id);
                 return (
-                  <div key={l.key} className="grid grid-cols-[minmax(0,1fr)_5.5rem_6.5rem_1.5rem] items-center gap-2" data-testid="po-line">
-                    <select className="input py-2" value={l.stock_item_id} aria-label={`Item ${idx + 1}`}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, stock_item_id: v, unit_price: String(priceFor(v, form.supplierId) || "") } : x)) });
-                      }}>
-                      <option value="">Choose…</option>
-                      {active.map((i) => <option key={i.id} value={i.id}>{i.name} ({fmtQty(i.qty, i.unit)} left)</option>)}
-                    </select>
-                    <input className="input py-2" type="number" min={0} step="any" placeholder={it?.unit ?? "qty"} value={l.qty} aria-label={`Qty ${idx + 1}`}
+                  <div key={l.key} className="grid grid-cols-[minmax(0,1fr)_5.5rem_6.5rem_1.5rem] items-start gap-2" data-testid="po-line">
+                    <div className="min-w-0 space-y-1">
+                      <select className="input py-2" value={l.stock_item_id} aria-label={`Item ${idx + 1}`}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, stock_item_id: v, unit_price: v === NEW ? x.unit_price : String(priceFor(v, form.supplierId) || "") } : x)) });
+                        }}>
+                        <option value="">Choose…</option>
+                        {active.map((i) => <option key={i.id} value={i.id}>{i.name} ({fmtQty(i.qty, i.unit)} left)</option>)}
+                        <option value={NEW}>+ New item…</option>
+                      </select>
+                      {l.stock_item_id === NEW && (
+                        <div className="flex gap-1">
+                          <input className="input min-w-0 flex-1 py-1.5 text-sm" placeholder="New item name, e.g. Burger buns" value={l.newName} aria-label={`New item name ${idx + 1}`}
+                            onChange={(e) => setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, newName: e.target.value } : x)) })} />
+                          <input className="input w-20 py-1.5 text-sm" list="po-units" value={l.newUnit} aria-label={`New item unit ${idx + 1}`}
+                            onChange={(e) => setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, newUnit: e.target.value } : x)) })} />
+                        </div>
+                      )}
+                    </div>
+                    <input className="input py-2" type="number" min={0} step="any" placeholder={l.stock_item_id === NEW ? l.newUnit || "qty" : it?.unit ?? "qty"} value={l.qty} aria-label={`Qty ${idx + 1}`}
                       onChange={(e) => setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, qty: e.target.value } : x)) })} />
                     <input className="input py-2" type="number" min={0} step="any" value={l.unit_price} aria-label={`Price ${idx + 1}`}
                       onChange={(e) => setForm({ ...form, lines: form.lines.map((x) => (x.key === l.key ? { ...x, unit_price: e.target.value } : x)) })} />
@@ -205,7 +239,9 @@ export default function PurchasesTab({ data, reload, draft, clearDraft }: InvPro
                   </div>
                 );
               })}
-              <button type="button" className="text-sm text-brand" onClick={() => setForm({ ...form, lines: [...form.lines, blank()] })}>+ Add item</button>
+              <datalist id="po-units">{UNITS.map((u) => <option key={u} value={u} />)}</datalist>
+              <button type="button" className="text-sm text-brand" onClick={() => setForm({ ...form, lines: [...form.lines, blank(!active.length)] })}>+ Add item</button>
+              <p className="text-xs text-muted">Not in your stock list yet? Choose <b>+ New item…</b> and type it. It&apos;s added to Stock automatically, and the quantity goes in when you mark the purchase received.</p>
             </div>
             <Field label="Note for the supplier (optional)"><input id="po-note" className="input" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></Field>
             <div className="flex justify-between font-semibold"><span>Estimated total</span><span data-testid="po-total">{money(estTotal(form.lines), cur)}</span></div>

@@ -274,7 +274,7 @@ Staff orders skip the website-only checks (opening hours, minimum order, map pin
 **Stock** page (owner, manager) — three tabs:
 
 - **📦 Stock:** your ingredients and packaging (unit, "warn at" level, cost per unit, opening stock). Shows what's in stock, what's low, how many days it will last (from the last 14 days of use) and the stock value. **± Adjust** records waste/spoilage or a correction; **📋 Count stock** lets you enter what you actually have and saves only the differences. Tap an item to see its history. **Order these** turns the low items into a purchase.
-- **🧾 Purchases:** create a purchase (supplier, items, quantity, price — the last price paid is filled in) and send it to the supplier on WhatsApp in one tap. When the goods arrive, **✓ Received**: fix the real quantities/prices, enter what you paid now. That adds the stock, updates each item's average cost, records the **Expense** automatically, and puts anything unpaid on the supplier's balance.
+- **🧾 Purchases:** create a purchase (supplier, items, quantity, price — the last price paid is filled in; items not in Stock yet can be typed in with **+ New item…** and are added automatically) and send it to the supplier on WhatsApp in one tap. When the goods arrive, **✓ Received**: fix the real quantities/prices, enter what you paid now. That adds the stock, updates each item's average cost, records the **Expense** automatically, and puts anything unpaid on the supplier's balance.
 - **🚚 Suppliers:** contact, total bought, **what you owe** (received purchases − payments), **Pay** to record a payment, and a statement of purchases and payments.
 
 **Recipes:** Menu → edit dish → *Recipe* — what goes into one portion (e.g. 1 bun + 0.15 kg chicken + 1 box). Then:
