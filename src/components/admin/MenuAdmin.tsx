@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { money, normalise } from "@/lib/format";
 import { useShop } from "@/lib/use-currency";
-import { dateIn, dayStartIso, todayIn } from "@/lib/tz";
+import { bizDate, bizStartIso, bizToday } from "@/lib/tz";
 import type { Category, DishTag, I18nText, Lang, MenuItem } from "@/lib/types";
 import { LANGS } from "@/lib/i18n";
 import { fmtQty, recipeCost } from "@/lib/inventory";
@@ -26,7 +26,7 @@ const EMPTY: Draft = {
 
 export default function MenuAdmin() {
   const db = useMemo(() => supabaseBrowser(), []);
-  const { cur, tz, ready } = useShop();
+  const { cur, tz, dayEnd, ready } = useShop();
   const [soldToday, setSoldToday] = useState<Record<string, number>>({});
   const [cats, setCats] = useState<Category[]>([]);
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -53,8 +53,8 @@ export default function MenuAdmin() {
     setItems((i.data ?? []).map((x) => ({ ...normalise(x), option_groups: x.option_groups ?? [], tags: x.tags ?? [] }) as MenuItem));
     if (!ready) return;
     // Sold today (for daily limits): orders whose service day is today in the shop's time zone.
-    const today = todayIn(tz);
-    const from = dayStartIso(today, tz);
+    const today = bizToday(tz, dayEnd);
+    const from = bizStartIso(today, tz, dayEnd);
     const { data: os } = await db
       .from("orders")
       .select("status, created_at, scheduled_for, order_items(menu_item_id, qty)")
@@ -62,13 +62,13 @@ export default function MenuAdmin() {
       .neq("status", "rejected");
     const sold: Record<string, number> = {};
     for (const o of os ?? []) {
-      if (dateIn(o.scheduled_for ?? o.created_at, tz) !== today) continue;
+      if (bizDate(o.scheduled_for ?? o.created_at, tz, dayEnd) !== today) continue;
       for (const it of (o.order_items ?? []) as { menu_item_id: string | null; qty: number }[]) {
         if (it.menu_item_id) sold[it.menu_item_id] = (sold[it.menu_item_id] ?? 0) + it.qty;
       }
     }
     setSoldToday(sold);
-  }, [db, tz, ready]);
+  }, [db, tz, dayEnd, ready]);
   useEffect(() => {
     load();
   }, [load]);

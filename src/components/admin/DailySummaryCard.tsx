@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { money, type Currency } from "@/lib/format";
-import { todayIn } from "@/lib/tz";
+import { bizToday } from "@/lib/tz";
 
 type Summary = {
   day: string;
@@ -15,12 +15,12 @@ type Summary = {
 };
 
 /** "Today's summary" with one-tap sharing on WhatsApp (e.g. to the owner's own chat or family group). */
-export default function DailySummaryCard({ cur, tz }: { cur: Currency; tz: string }) {
-  const [day, setDay] = useState(() => todayIn(tz));
+export default function DailySummaryCard({ cur, tz, dayEnd = 0 }: { cur: Currency; tz: string; dayEnd?: number }) {
+  const [day, setDay] = useState(() => bizToday(tz, dayEnd));
   const [data, setData] = useState<{ summary: Summary; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => setDay(todayIn(tz)), [tz]);
+  useEffect(() => setDay(bizToday(tz, dayEnd)), [tz, dayEnd]);
   useEffect(() => {
     setData(null);
     fetch(`/api/admin/summary?date=${day}`)
@@ -34,7 +34,7 @@ export default function DailySummaryCard({ cur, tz }: { cur: Currency; tz: strin
     <section className="card space-y-3 p-4" data-testid="daily-summary">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="font-semibold">📋 Daily summary</h2>
-        <input type="date" className="rounded-lg border border-line bg-paper px-2 py-1 text-sm" value={day} max={todayIn(tz)}
+        <input type="date" className="rounded-lg border border-line bg-paper px-2 py-1 text-sm" value={day} max={bizToday(tz, dayEnd)}
           onChange={(e) => e.target.value && setDay(e.target.value)} aria-label="Summary date" />
         <span className="flex-1" />
         {data && (

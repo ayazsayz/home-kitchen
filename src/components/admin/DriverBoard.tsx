@@ -5,7 +5,8 @@ import { currencyOf, money, normalise, normaliseOrder, roundMoney } from "@/lib/
 import { optionsText } from "@/lib/options";
 import { mapsLink } from "@/lib/maps";
 import { renderMessage, whatsappLink } from "@/lib/whatsapp";
-import { dayStartIso, timeShort, todayIn } from "@/lib/tz";
+import { bizStartIso, bizToday, timeShort } from "@/lib/tz";
+import { businessDayEnd } from "@/lib/schedule";
 import { withSettingDefaults } from "@/lib/settings";
 import type { Role } from "@/lib/roles";
 import type { Order, Settings } from "@/lib/types";
@@ -27,7 +28,8 @@ export default function DriverBoard({ role, userId, name }: { role: Role; userId
     const { data: st } = await db.from("settings").select("*").eq("id", 1).single();
     const s = st ? withSettingDefaults(normalise(st)) : null;
     if (s) setSettings(s);
-    const since = dayStartIso(todayIn(s?.timezone), s?.timezone);
+    const h = businessDayEnd(s);
+    const since = bizStartIso(bizToday(s?.timezone, h), s?.timezone, h);
     // Drivers only receive rows the database allows them to see (ready & unassigned, or theirs).
     const { data } = await db
       .from("orders")

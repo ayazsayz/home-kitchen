@@ -11,6 +11,7 @@ import { STATUS_LABEL, type Order, type OrderStatus, type Settings } from "@/lib
 import { withSettingDefaults } from "@/lib/settings";
 import HoursSettings from "./HoursSettings";
 import ClosuresSettings from "./ClosuresSettings";
+import BusinessDaySettings from "./BusinessDaySettings";
 import BlockedNumbers from "./BlockedNumbers";
 import WhatsAppSetup from "./WhatsAppSetup";
 import { REGIONS, regionOf } from "@/lib/region";
@@ -37,6 +38,7 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
   const [savedJson, setSavedJson] = useState("");
   const [msg, setMsg] = useState("");
   const [tab, setTab] = useState<TabKey>("general");
+  const [hasDayEnd, setHasDayEnd] = useState(false); // column added by migration 015
 
   useEffect(() => {
     db.from("settings")
@@ -46,6 +48,7 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
       .then(({ data }) => {
         if (!data) return;
         const v = withSettingDefaults(normalise(data));
+        setHasDayEnd("day_end_hour" in data);
         setS(v);
         setSavedJson(JSON.stringify(v));
       });
@@ -119,6 +122,7 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
         delivery_fee: Number(s.delivery_fee) || 0,
         min_order: Number(s.min_order) || 0,
         late_minutes: Math.min(240, Math.max(0, Math.round(Number(s.late_minutes)) || 0)),
+        ...(hasDayEnd ? { day_end_hour: s.day_end_hour == null ? null : Math.min(6, Math.max(0, Math.round(Number(s.day_end_hour)) || 0)) } : {}),
         backup_weekly: s.backup_weekly,
         whatsapp_button: s.whatsapp_button,
         legal_extra: (s.legal_extra || "").slice(0, 2000),
@@ -241,6 +245,7 @@ export default function SettingsForm({ paymentProvider, zones }: { paymentProvid
       <>
         <HoursSettings s={s} set={set} />
         <ClosuresSettings s={s} set={set} />
+        <BusinessDaySettings s={s} set={set} enabled={hasDayEnd} />
         <div className="card space-y-2 p-4">
           <div className="font-semibold">⏰ Late-order alert</div>
           <p className="text-sm text-muted">

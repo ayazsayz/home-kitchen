@@ -143,7 +143,7 @@ Menu → edit a dish → **Daily limit**, e.g. 20 biryanis. The menu shows "Only
 ## Daily summary
 
 - **Sales → Daily summary**: orders, sales, cash vs card, expenses, profit and top dishes for any day, with **Share on WhatsApp** (send it to yourself or a family group) and **Copy**.
-- **Nightly email** (optional): create a free [Resend](https://resend.com) account, add `RESEND_API_KEY` and a random `CRON_SECRET` in Vercel → Environment Variables, enter the email in Settings → Daily summary email and redeploy. `vercel.json` runs the job at 20:30 UTC (00:30 UAE, 01:30 Pakistan) and emails the day that just ended. Use **Send today's summary now** to test. Without a verified domain, Resend only delivers to your own Resend login email; set `SUMMARY_FROM` once you verify a domain.
+- **Nightly email** (optional): create a free [Resend](https://resend.com) account, add `RESEND_API_KEY` and a random `CRON_SECRET` in Vercel → Environment Variables, enter the email in Settings → Daily summary email and redeploy. `vercel.json` runs the job at 02:00 UTC (06:00 UAE, 07:00 Pakistan) and emails the business day that just ended (see Settings → Hours → Business day ends at). Use **Send today's summary now** to test. Without a verified domain, Resend only delivers to your own Resend login email; set `SUMMARY_FROM` once you verify a domain.
 
 ## Install as an app
 

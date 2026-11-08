@@ -1,7 +1,8 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase-server";
 import { currencyOf, money, roundMoney } from "./format";
-import { addDays, dayEndIso, dayStartIso, zoned } from "./tz";
+import { addDays, bizEndIso, bizStartIso, zoned } from "./tz";
+import { businessDayEnd } from "./schedule";
 import type { Settings } from "./types";
 
 export type DailySummary = {
@@ -22,12 +23,12 @@ export type DailySummary = {
   reviews: { avg: number; count: number; low: number }; // ratings left that day
 };
 
-async function totalsFor(day: string, tz: string) {
+async function totalsFor(day: string, tz: string, h: number) {
   const { data } = await supabaseAdmin()
     .from("orders")
     .select("total, discount, delivery_fee, payment_status, status, customer_phone, order_items(name, qty)")
-    .gte("created_at", dayStartIso(day, tz))
-    .lt("created_at", dayEndIso(day, tz))
+    .gte("created_at", bizStartIso(day, tz, h))
+    .lt("created_at", bizEndIso(day, tz, h))
     .neq("status", "pending_payment");
   return data ?? [];
 }
@@ -35,14 +36,15 @@ async function totalsFor(day: string, tz: string) {
 /** Numbers for one day in the shop's time zone (orders counted by when they were placed). */
 export async function buildSummary(day: string, s: Settings): Promise<DailySummary> {
   const tz = s.timezone;
+  const h = businessDayEnd(s);
   const r = (n: number) => roundMoney(n, 3);
   const db = supabaseAdmin();
   const [rows, prev, exp] = await Promise.all([
-    totalsFor(day, tz),
-    totalsFor(addDays(day, -7), tz),
+    totalsFor(day, tz, h),
+    totalsFor(addDays(day, -7), tz, h),
     db.from("expenses").select("amount").eq("spent_on", day),
   ]);
-  const { data: rev } = await db.from("reviews").select("rating").gte("created_at", dayStartIso(day, tz)).lt("created_at", dayEndIso(day, tz));
+  const { data: rev } = await db.from("reviews").select("rating").gte("created_at", bizStartIso(day, tz, h)).lt("created_at", bizEndIso(day, tz, h));
   const ratings = (rev ?? []).map((x) => Number(x.rating));
   const ok = rows.filter((o) => o.status !== "rejected");
   const revenue = r(ok.reduce((a, o) => a + Number(o.total), 0));
@@ -58,7 +60,7 @@ export async function buildSummary(day: string, s: Settings): Promise<DailySumma
       .from("orders")
       .select("customer_phone")
       .in("customer_phone", phones)
-      .lt("created_at", dayStartIso(day, tz))
+      .lt("created_at", bizStartIso(day, tz, h))
       .neq("status", "rejected");
     const seen = new Set((earlier ?? []).map((x) => x.customer_phone));
     newCustomers = phones.filter((p) => !seen.has(p)).length;
@@ -89,9 +91,10 @@ export async function buildSummary(day: string, s: Settings): Promise<DailySumma
   };
 }
 
-/** The business day that just finished: before noon it's yesterday, after noon it's today. */
-export function justEndedDay(s: Pick<Settings, "timezone">, now = new Date()) {
-  const z = zoned(now, s.timezone);
+/** The business day that just finished: before noon (of the business day) it's yesterday, after noon it's today. */
+export function justEndedDay(s: Pick<Settings, "timezone" | "hours" | "day_end_hour">, now = new Date()) {
+  const h = businessDayEnd(s);
+  const z = zoned(new Date(now.getTime() - h * 3600000), s.timezone);
   return z.minutes < 12 * 60 ? addDays(z.ymd, -1) : z.ymd;
 }
 

@@ -49,6 +49,7 @@ export type Settings = {
   max_orders_phone: number; // per 10 min, 0 = no limit
   max_orders_device: number;
   late_minutes: number; // kitchen alert after N minutes, 0 = off
+  day_end_hour: number | null; // business day ends at this hour (0–6), null = Auto from opening hours
   backup_weekly: boolean;
   whatsapp_button: boolean;
   legal_extra: string;

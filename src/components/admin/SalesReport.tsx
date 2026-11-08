@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { money, normaliseOrder, roundMoney } from "@/lib/format";
 import { useShop } from "@/lib/use-currency";
-import { addDays, dateIn, dateTimeFull, dayStartIso, todayIn } from "@/lib/tz";
+import { addDays, bizDate, bizStartIso, bizToday, dateTimeFull } from "@/lib/tz";
 import type { Order } from "@/lib/types";
 import DailySummaryCard from "./DailySummaryCard";
 import { dishProfit } from "@/lib/profit";
@@ -17,7 +17,7 @@ const RANGES = [
 
 export default function SalesReport() {
   const db = useMemo(() => supabaseBrowser(), []);
-  const { cur, tz, ready } = useShop();
+  const { cur, tz, dayEnd, ready } = useShop();
   const [range, setRange] = useState<(typeof RANGES)[number]>(RANGES[0]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,14 +33,14 @@ export default function SalesReport() {
     setLoading(true);
     db.from("orders")
       .select("*, order_items(*)")
-      .gte("created_at", dayStartIso(addDays(todayIn(tz), -range.days), tz))
+      .gte("created_at", bizStartIso(addDays(bizToday(tz, dayEnd), -range.days), tz, dayEnd))
       .not("status", "in", "(rejected,pending_payment)")
       .order("created_at")
       .then(({ data }) => {
         setOrders((data ?? []).map((o) => normaliseOrder(o) as Order));
         setLoading(false);
       });
-  }, [db, range, tz, ready]);
+  }, [db, range, tz, dayEnd, ready]);
 
   const stats = useMemo(() => {
     const revenue = roundMoney(orders.reduce((s, o) => s + o.total, 0), 3);
@@ -54,7 +54,7 @@ export default function SalesReport() {
         const acc = items.get(i.name) ?? { qty: 0, amount: 0 };
         items.set(i.name, { qty: acc.qty + i.qty, amount: roundMoney(acc.amount + i.line_total, 3) });
       }
-      const d = dateIn(o.created_at, tz);
+      const d = bizDate(o.created_at, tz, dayEnd);
       const cd = days.get(d) ?? { count: 0, amount: 0 };
       days.set(d, { count: cd.count + 1, amount: roundMoney(cd.amount + o.total, 3) });
     }
@@ -69,7 +69,7 @@ export default function SalesReport() {
       top: [...items.entries()].sort((a, b) => b[1].qty - a[1].qty),
       days: [...days.entries()].sort((a, b) => b[0].localeCompare(a[0])),
     };
-  }, [orders, tz]);
+  }, [orders, tz, dayEnd]);
 
   const profit = useMemo(() => dishProfit(orders.flatMap((o) => o.order_items ?? []), costs), [orders, costs]);
 
@@ -117,7 +117,7 @@ export default function SalesReport() {
         <button className="btn-ghost text-sm" onClick={exportCsv} disabled={!orders.length}>Export CSV</button>
       </div>
 
-      {ready && <DailySummaryCard cur={cur} tz={tz} />}
+      {ready && <DailySummaryCard cur={cur} tz={tz} dayEnd={dayEnd} />}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <Stat label="Revenue" value={money(stats.revenue, cur)} />
