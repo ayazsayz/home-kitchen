@@ -1,6 +1,6 @@
 import "server-only";
 import { supabaseAdmin } from "./supabase-server";
-import { addDays, dateIn, dayStartIso, todayIn } from "./tz";
+import { addDays, bizDate, bizStartIso, bizToday } from "./tz";
 
 /**
  * Daily stock limits. An order uses stock on its *service day*: the day it's scheduled for,
@@ -11,10 +11,11 @@ const HOLD_MS = 30 * 60 * 1000;
 
 export type SoldMap = Record<string, Record<string, number>>; // day → menu_item_id → qty
 
-export async function soldByDay(tz: string, days = 15): Promise<SoldMap> {
-  const today = todayIn(tz);
-  const from = dayStartIso(addDays(today, -1), tz);
-  const to = dayStartIso(addDays(today, days + 1), tz);
+/** `h` = hour the business day ends (0 = midnight); late-night orders count for the day before. */
+export async function soldByDay(tz: string, days = 15, h = 0): Promise<SoldMap> {
+  const today = bizToday(tz, h);
+  const from = bizStartIso(addDays(today, -1), tz, h);
+  const to = bizStartIso(addDays(today, days + 1), tz, h);
   const { data } = await supabaseAdmin()
     .from("orders")
     .select("status, created_at, scheduled_for, order_items(menu_item_id, qty)")
@@ -24,7 +25,7 @@ export async function soldByDay(tz: string, days = 15): Promise<SoldMap> {
   const now = Date.now();
   for (const o of data ?? []) {
     if (o.status === "pending_payment" && now - Date.parse(o.created_at) > HOLD_MS) continue;
-    const day = dateIn(o.scheduled_for ?? o.created_at, tz);
+    const day = bizDate(o.scheduled_for ?? o.created_at, tz, h);
     if (o.scheduled_for && o.scheduled_for >= to) continue;
     const m = (out[day] ??= {});
     for (const it of (o.order_items ?? []) as { menu_item_id: string | null; qty: number }[]) {

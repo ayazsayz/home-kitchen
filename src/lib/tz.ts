@@ -58,6 +58,19 @@ export const addDays = (ymd: string, n: number) =>
 export const dayStartIso = (ymd: string, tz = DEFAULT_TZ) => zonedInstant(ymd, 0, tz).toISOString();
 export const dayEndIso = (ymd: string, tz = DEFAULT_TZ) => zonedInstant(addDays(ymd, 1), 0, tz).toISOString();
 
+/**
+ * Business day: a shop open past midnight can count late-night orders on the day it opened.
+ * `h` = hour the business day ends (0 = midnight, the normal calendar day). With h = 4,
+ * 1:00 AM on 8 Nov belongs to 7 Nov and 4:00 AM starts 8 Nov. With h = 0 these equal the calendar helpers.
+ */
+export function bizDate(iso: string | Date, tz = DEFAULT_TZ, h = 0) {
+  const z = zoned(new Date(iso), tz);
+  return h > 0 && z.minutes < h * 60 ? addDays(z.ymd, -1) : z.ymd;
+}
+export const bizToday = (tz = DEFAULT_TZ, h = 0, now = new Date()) => bizDate(now, tz, h);
+export const bizStartIso = (ymd: string, tz = DEFAULT_TZ, h = 0) => zonedInstant(ymd, h * 60, tz).toISOString();
+export const bizEndIso = (ymd: string, tz = DEFAULT_TZ, h = 0) => zonedInstant(addDays(ymd, 1), h * 60, tz).toISOString();
+
 /** "28 Oct, 19:30" */
 export function timeShort(iso: string, tz = DEFAULT_TZ) {
   return new Date(iso).toLocaleString("en-GB", { timeZone: tz, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });

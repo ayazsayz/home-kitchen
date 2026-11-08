@@ -1,7 +1,8 @@
 import { getAvailability, getMenu, getSettings } from "@/lib/data";
 import { cardAvailable } from "@/lib/payments/service";
 import { remainingFor, soldByDay } from "@/lib/stock";
-import { todayIn } from "@/lib/tz";
+import { bizToday } from "@/lib/tz";
+import { businessDayEnd } from "@/lib/schedule";
 import MenuClient from "@/components/MenuClient";
 import CustomerShell from "@/components/CustomerShell";
 import { currentLang, offeredLangs } from "@/lib/lang-server";
@@ -24,7 +25,7 @@ export default async function Home() {
   const limited = menu.items.filter((i) => i.daily_limit != null);
   const [availability, sold, lang, rev, best] = await Promise.all([
     getAvailability(settings),
-    limited.length ? soldByDay(settings.timezone, 0) : Promise.resolve({}),
+    limited.length ? soldByDay(settings.timezone, 0, businessDayEnd(settings)) : Promise.resolve({}),
     currentLang(settings),
     menuReviews().catch(() => null),
     bestSellers().catch(() => []),
@@ -36,7 +37,7 @@ export default async function Home() {
       availability={availability}
       categories={menu.categories}
       items={menu.items}
-      remaining={remainingFor(limited, sold, todayIn(settings.timezone))}
+      remaining={remainingFor(limited, sold, bizToday(settings.timezone, businessDayEnd(settings)))}
       rating={rev?.rating}
       reviews={rev?.reviews}
       bestsellers={best}

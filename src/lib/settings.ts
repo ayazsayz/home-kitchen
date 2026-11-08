@@ -31,6 +31,7 @@ export function withSettingDefaults(s: Record<string, unknown>): Settings {
     max_orders_phone: s.max_orders_phone == null ? 3 : Math.max(0, Number(s.max_orders_phone) || 0),
     max_orders_device: s.max_orders_device == null ? 6 : Math.max(0, Number(s.max_orders_device) || 0),
     late_minutes: s.late_minutes == null ? 30 : Math.max(0, Number(s.late_minutes) || 0),
+    day_end_hour: s.day_end_hour === undefined ? 0 : s.day_end_hour === null || s.day_end_hour === "" ? null : Math.min(6, Math.max(0, Math.round(Number(s.day_end_hour)) || 0)),
     backup_weekly: s.backup_weekly !== false,
     whatsapp_button: s.whatsapp_button !== false,
     legal_extra: String(s.legal_extra ?? ""),

@@ -35,6 +35,30 @@ function dayRanges(hours: WeeklyHours, dow: number): [number, number][] {
     .filter((x): x is [number, number] => x !== null);
 }
 
+/**
+ * Hour (0–6) the business day ends. Set by the owner (settings.day_end_hour), or Auto (null):
+ * the latest closing time after midnight in the opening hours + 1 hour buffer, rounded up to the hour;
+ * 0 (midnight, plain calendar days) when the shop never trades past midnight, or before migration 015.
+ */
+export function businessDayEnd(s: { day_end_hour?: number | null; hours?: WeeklyHours } | null | undefined): number {
+  const set = s?.day_end_hour;
+  if (set === undefined) return 0; // database not updated yet (migration 015): plain calendar days
+  if (typeof set === "number" && Number.isInteger(set) && set >= 0 && set <= 6) return set;
+  return autoDayEnd(s?.hours);
+}
+
+export function autoDayEnd(hours: WeeklyHours | undefined): number {
+  if (!hours) return 0;
+  let late = 0; // minutes past midnight of the latest overnight close
+  for (let d = 0; d < 7; d++) {
+    for (const [o, c] of dayRanges(hours, d)) {
+      if (c - o >= DAY) continue; // open 24 hours — no natural end
+      if (c > DAY) late = Math.max(late, c - DAY);
+    }
+  }
+  return late ? Math.min(6, Math.ceil((late + 60) / 60)) : 0;
+}
+
 export function hasHours(hours: WeeklyHours | undefined) {
   return !!hours && [0, 1, 2, 3, 4, 5, 6].some((d) => dayRanges(hours, d).length > 0);
 }

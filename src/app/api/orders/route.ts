@@ -11,10 +11,10 @@ import { checkPromo } from "@/lib/promo-server";
 import { loyaltyStatus } from "@/lib/loyalty-server";
 import { LOYALTY_CODE, rewardDiscount } from "@/lib/loyalty";
 import { remainingFor, soldByDay } from "@/lib/stock";
-import { dateIn, todayIn } from "@/lib/tz";
+import { bizDate } from "@/lib/tz";
 import { getAvailability } from "@/lib/data";
 import { withSettingDefaults } from "@/lib/settings";
-import { slotKey } from "@/lib/schedule";
+import { businessDayEnd, slotKey } from "@/lib/schedule";
 import type { OptionGroup } from "@/lib/types";
 
 type Body = {
@@ -160,8 +160,9 @@ export async function POST(req: Request) {
   // ----- daily stock limits (for the day the order will be cooked) -----
   const limited = (menu ?? []).filter((m) => m.daily_limit != null);
   if (limited.length) {
-    const day = scheduledFor ? dateIn(scheduledFor, settings.timezone) : todayIn(settings.timezone);
-    const left = remainingFor(limited, await soldByDay(settings.timezone, settings.days_ahead + 1), day);
+    const h = businessDayEnd(settings);
+    const day = bizDate(scheduledFor ?? new Date(), settings.timezone, h);
+    const left = remainingFor(limited, await soldByDay(settings.timezone, settings.days_ahead + 1, h), day);
     const wanted: Record<string, number> = {};
     for (const l of lines) wanted[l.id] = (wanted[l.id] ?? 0) + l.qty;
     for (const m of limited) {
