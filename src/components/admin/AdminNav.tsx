@@ -9,6 +9,11 @@ export default function AdminNav({ role, name }: { role: Role; name: string }) {
   const path = usePathname();
   async function logout() {
     await supabaseBrowser().auth.signOut();
+    // Forget staff screens kept for offline use (orders waiting to upload stay, so nothing is lost).
+    try {
+      localStorage.removeItem("hk_board_v1");
+      await caches.delete("hk-admin-pages-v1");
+    } catch {}
     window.location.href = "/admin/login";
   }
   return (

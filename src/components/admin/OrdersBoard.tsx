@@ -8,6 +8,7 @@ import { NOTIFY_STATUSES, renderMessage, whatsappLink } from "@/lib/whatsapp";
 import { fmtWhen } from "@/lib/schedule";
 import { mapsLink } from "@/lib/maps";
 import InstallPrompt from "@/components/InstallPrompt";
+import { SYNCED_EVENT } from "@/lib/offline-orders";
 import EditOrder from "./EditOrder";
 import { fmtQty, isLow } from "@/lib/inventory";
 import type { Role } from "@/lib/roles";
@@ -16,6 +17,8 @@ import Link from "next/link";
 import { STATUS_LABEL, type Order, type OrderStatus, type Settings } from "@/lib/types";
 
 const PRINTER_KEY = "hk_printer_v1";
+const BOARD_KEY = "hk_board_v1"; // last loaded board, shown when offline
+const ACTIVE: string[] = ["new", "accepted", "preparing", "ready", "out_for_delivery"];
 const WA_KEY = "hk_whatsapp_v1";
 type PrinterPref = { enabled: boolean; mode: PrintMode };
 
@@ -194,9 +197,26 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
           .limit(300),
         db.from("settings").select("*").eq("id", 1).single(),
       ]);
-      if (!rows || !st) return;
+      if (!rows || !st) {
+        // No connection: show the last saved board (once) so the kitchen still sees today's orders.
+        if (known.current.size === 0) {
+          try {
+            const snap = JSON.parse(localStorage.getItem(BOARD_KEY) || "null");
+            if (snap?.orders && snap?.settings) {
+              setSettings(snap.settings);
+              setOrders(snap.orders);
+              (snap.orders as Order[]).forEach((o) => known.current.add(o.id));
+            }
+          } catch {}
+        }
+        return;
+      }
       const s = normalise(st) as Settings;
       const list = rows.map((r) => normaliseOrder(r) as Order);
+      try {
+        const keep = list.filter((o) => ACTIVE.includes(o.status)).concat(list.filter((o) => !ACTIVE.includes(o.status)).slice(0, 30));
+        localStorage.setItem(BOARD_KEY, JSON.stringify({ orders: keep, settings: s }));
+      } catch {}
       setSettings(s);
       setOrders(list);
 
@@ -225,9 +245,14 @@ export default function OrdersBoard({ role = "owner" }: { role?: Role }) {
       })
       .subscribe((status) => setLive(status === "SUBSCRIBED"));
     const poll = setInterval(() => load({ notify: true }), 30000); // safety net if realtime drops
+    const synced = () => load({ notify: true }); // offline orders just uploaded
+    window.addEventListener(SYNCED_EVENT, synced);
+    window.addEventListener("online", synced);
     return () => {
       db.removeChannel(ch);
       clearInterval(poll);
+      window.removeEventListener(SYNCED_EVENT, synced);
+      window.removeEventListener("online", synced);
     };
   }, [db, load]);
 

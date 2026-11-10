@@ -22,7 +22,7 @@ function kitchenTicket(o: Order, s: Pick<Settings, "timezone">) {
     .join("");
   return `
   <div class="ticket">
-    <div style="text-align:center" class="big">KITCHEN · #${o.order_no}</div>
+    <div style="text-align:center" class="big">KITCHEN · ${o.offline_no ?? `#${o.order_no}`}</div>
     ${o.edited_at ? `<div class="big" style="text-align:center;background:#000;color:#fff">** UPDATED ORDER **</div>` : ""}
     <div style="text-align:center">${o.order_type === "pickup" ? "PICKUP" : "DELIVERY"}${o.zone_name ? ` · ${esc(o.zone_name)}` : ""} · ${esc(timeShort(o.created_at, s.timezone))}</div>
     ${o.scheduled_for ? `<div class="big" style="text-align:center;border:2px solid #000;margin-top:4px">FOR ${esc(fmtWhen(o.scheduled_for, s.timezone).toUpperCase())}</div>` : ""}
@@ -56,7 +56,7 @@ function receipt(o: Order, s: Settings, qr: string) {
     ${s.address ? `<div style="text-align:center">${esc(s.address)}</div>` : ""}
     ${o.vat_percent > 0 && s.trn ? `<div style="text-align:center">TRN ${esc(s.trn)}</div><div style="text-align:center">TAX INVOICE</div>` : ""}
     <hr/>
-    <div>Order #${o.order_no} · ${esc(timeShort(o.created_at, s.timezone))}</div>
+    <div>Order ${o.offline_no ?? `#${o.order_no}`} · ${esc(timeShort(o.created_at, s.timezone))}</div>
     <div>${o.order_type === "pickup" ? "Pickup" : "Delivery"}${o.zone_name ? ` · ${esc(o.zone_name)}` : ""}</div>
     ${o.scheduled_for ? `<div><b>For ${esc(fmtWhen(o.scheduled_for, s.timezone))}</b></div>` : ""}
     <hr/>
@@ -134,7 +134,7 @@ function css(l: PrintLayout) {
 export function ticketHtml(o: Order, s: Settings, mode: PrintMode, qr = "", layout: PrintLayout = DEFAULT_LAYOUT) {
   const parts =
     mode === "kitchen" ? [kitchenTicket(o, s)] : mode === "receipt" ? [receipt(o, s, qr)] : [kitchenTicket(o, s), receipt(o, s, qr)];
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Order ${o.order_no}</title><style>${css(layout)}</style></head>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Order ${o.offline_no ?? o.order_no}</title><style>${css(layout)}</style></head>
   <body>${parts.join('<div class="cut"></div>')}</body></html>`;
 }
 

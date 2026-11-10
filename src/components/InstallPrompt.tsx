@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useI18n } from "./I18n";
+import { registerSW } from "@/lib/offline-orders";
 
 type BIPEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
 
@@ -16,7 +17,7 @@ export default function InstallPrompt({ name, kitchen = false }: { name: string;
   const { t } = useI18n();
 
   useEffect(() => {
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+    registerSW();
     const standalone =
       window.matchMedia("(display-mode: standalone)").matches || (navigator as unknown as { standalone?: boolean }).standalone;
     let dismissed = false;

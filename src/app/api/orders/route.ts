@@ -32,7 +32,19 @@ type Body = {
   lang?: string;
   /** set by the staff "New order" screen */
   source?: "web" | "whatsapp" | "phone" | "walkin";
+  /** staff screen: id made on the device, so an order sent twice (e.g. after a dropped connection) is saved once */
+  client_ref?: string;
+  /** staff order taken while offline and uploaded later */
+  offline?: boolean;
+  /** when an offline order was taken (ISO) */
+  placed_at?: string;
+  /** offline order was already printed on the device */
+  printed?: boolean;
 };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Postgres / PostgREST "column does not exist" — migration 016 not run yet. */
+const noColumn = (e: { code?: string } | null) => !!e && (e.code === "42703" || e.code === "PGRST204");
 
 const bad = (error: string, status = 400) => NextResponse.json({ error }, { status });
 
@@ -65,6 +77,18 @@ export async function POST(req: Request) {
   if (source !== "web" && (!staff || !["owner", "manager", "cook"].includes(staff.role))) return bad("Please sign in as staff", 401);
 
   const db = supabaseAdmin();
+
+  // ----- offline orders & double-send guard (staff only) -----
+  const ref = staff && typeof body.client_ref === "string" && UUID.test(body.client_ref) ? body.client_ref.toLowerCase() : null;
+  const offline = !!staff && body.offline === true;
+  if (ref) {
+    const { data: dup, error: dErr } = await db.from("orders").select("id, order_no").eq("client_ref", ref).maybeSingle();
+    if (dup) return NextResponse.json({ id: dup.id, order_no: dup.order_no, duplicate: true });
+    if (dErr && !noColumn(dErr)) console.error(dErr);
+  }
+  // An offline order keeps the time it was taken (within the last 3 days).
+  const placedMs = offline && body.placed_at ? Date.parse(body.placed_at) : NaN;
+  const placedAt = Number.isFinite(placedMs) && placedMs <= Date.now() + 5 * 60000 && placedMs >= Date.now() - 3 * 86400000 ? new Date(Math.min(placedMs, Date.now())).toISOString() : null;
 
   const { data: settingsRow, error: sErr } = await db.from("settings").select("*").eq("id", 1).single();
   if (sErr || !settingsRow) return bad("Restaurant not configured", 500);
@@ -139,7 +163,7 @@ export async function POST(req: Request) {
   for (const l of lines) {
     const m = byId.get(l.id);
     if (!m) return bad("An item in your cart no longer exists. Please refresh the menu.");
-    if (!m.available) return bad(`${m.name} is sold out. Please remove it from your cart.`);
+    if (!m.available && !offline) return bad(`${m.name} is sold out. Please remove it from your cart.`);
     const opts = resolveOptions(
       { name: m.name, option_groups: (m.option_groups ?? []) as OptionGroup[] },
       Array.isArray(l.choiceIds) ? l.choiceIds.filter((x) => typeof x === "string") : [],
@@ -159,7 +183,7 @@ export async function POST(req: Request) {
 
   // ----- daily stock limits (for the day the order will be cooked) -----
   const limited = (menu ?? []).filter((m) => m.daily_limit != null);
-  if (limited.length) {
+  if (limited.length && !offline) {
     const h = businessDayEnd(settings);
     const day = bizDate(scheduledFor ?? new Date(), settings.timezone, h);
     const left = remainingFor(limited, await soldByDay(settings.timezone, settings.days_ahead + 1, h), day);
@@ -185,18 +209,18 @@ export async function POST(req: Request) {
   // ----- loyalty reward (automatic) or promo code — not both -----
   let discount = 0;
   let promoCode: string | null = null;
-  const loyalty = await loyaltyStatus(phone, settings, cur);
-  const reward = loyalty.due ? rewardDiscount(settings, subtotal, cur) : 0;
+  const loyalty = offline ? null : await loyaltyStatus(phone, settings, cur);
+  const reward = loyalty?.due ? rewardDiscount(settings, subtotal, cur) : 0;
   if (reward > 0) {
     if (body.promo_code && String(body.promo_code).trim()) {
       return NextResponse.json(
-        { error: `Your loyalty reward (${loyalty.label}) is applied to this order, so a promo code can't be added.`, code: "promo_invalid" },
+        { error: `Your loyalty reward (${loyalty!.label}) is applied to this order, so a promo code can't be added.`, code: "promo_invalid" },
         { status: 400 },
       );
     }
     discount = Math.min(reward, round(subtotal + fee));
     promoCode = LOYALTY_CODE;
-  } else if (body.promo_code && String(body.promo_code).trim()) {
+  } else if (!offline && body.promo_code && String(body.promo_code).trim()) {
     const promo = await checkPromo(String(body.promo_code), { subtotal, deliveryFee: fee, isDelivery: type === "delivery", phone }, cur);
     if (!promo.ok) return NextResponse.json({ error: promo.error, code: "promo_invalid" }, { status: 400 });
     discount = Math.min(promo.discount, round(subtotal + fee));
@@ -209,9 +233,7 @@ export async function POST(req: Request) {
   if (card && !cardAvailable(settings)) return bad("Card payment is not available right now. Please choose cash.");
   if (card && total <= 0) return bad("Nothing to pay by card. Please choose cash.");
 
-  const { data: order, error: oErr } = await db
-    .from("orders")
-    .insert({
+  const row = {
       order_type: type,
       customer_name: name,
       customer_phone: phone,
@@ -235,9 +257,17 @@ export async function POST(req: Request) {
       client_hash: hash,
       source,
       created_by_name: staff?.name ?? "",
-    })
-    .select("id, order_no")
-    .single();
+      ...(placedAt ? { created_at: placedAt } : {}),
+      ...(offline && body.printed ? { printed_at: placedAt ?? new Date().toISOString() } : {}),
+  };
+  const insert = (r: Record<string, unknown>) => db.from("orders").insert(r).select("id, order_no").single();
+  let { data: order, error: oErr } = await insert(ref ? { ...row, client_ref: ref } : row);
+  if (oErr && ref && noColumn(oErr)) ({ data: order, error: oErr } = await insert(row)); // before migration 016
+  if (oErr?.code === "23505" && ref) {
+    // the same order arrived twice at the same moment — return the one that was saved
+    const { data: dup } = await db.from("orders").select("id, order_no").eq("client_ref", ref).maybeSingle();
+    if (dup) return NextResponse.json({ id: dup.id, order_no: dup.order_no, duplicate: true });
+  }
   if (oErr || !order) {
     console.error(oErr);
     return bad("Could not place order", 500);

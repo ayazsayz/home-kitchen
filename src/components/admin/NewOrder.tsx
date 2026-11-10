@@ -1,13 +1,16 @@
 "use client";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase";
 import { currencyOf, money, roundMoney } from "@/lib/format";
 import { normalisePhone, regionOf, validPhone } from "@/lib/region";
 import { optionsText } from "@/lib/options";
 import { whatsappLink } from "@/lib/whatsapp";
 import OptionsSheet from "@/components/OptionsSheet";
-import type { Category, DeliveryZone, MenuItem, PickedOption, Settings } from "@/lib/types";
+import { printOrder } from "@/lib/ticket";
+import { enqueue, isNetworkError, nextTempNo, printMode, type QueuedOrder } from "@/lib/offline-orders";
+import { SETTINGS_KEY } from "./OfflineBar";
+import type { Category, DeliveryZone, MenuItem, Order, PickedOption, Settings } from "@/lib/types";
 
 type Source = "whatsapp" | "phone" | "walkin";
 type Line = { key: string; id: string; name: string; qty: number; unit: number; choiceIds: string[]; options: PickedOption[] };
@@ -28,7 +31,23 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
   const [picking, setPicking] = useState<MenuItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [done, setDone] = useState<{ id: string; no: number; total: number; name: string; phone: string; type: "delivery" | "pickup" } | null>(null);
+  const [done, setDone] = useState<{ id: string; no: number; total: number; name: string; phone: string; type: "delivery" | "pickup"; offline?: QueuedOrder } | null>(null);
+  const [online, setOnline] = useState(true);
+
+  // Keep what's needed to take and print orders without internet.
+  useEffect(() => {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    } catch {}
+    const on = () => setOnline(navigator.onLine);
+    on();
+    window.addEventListener("online", on);
+    window.addEventListener("offline", on);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", on);
+    };
+  }, [settings]);
 
   const zone = zones.find((z) => z.id === form.zoneId);
   const fee = type === "delivery" ? (zones.length ? zone?.fee ?? 0 : Number(settings.delivery_fee) || 0) : 0;
@@ -40,7 +59,7 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
   /** Fill in a returning customer's details from their last order. */
   async function lookup() {
     const phone = normalisePhone(form.phone, settings.phone_country_code);
-    if (!validPhone(phone)) return setKnown(null);
+    if (!validPhone(phone) || !navigator.onLine) return setKnown(null);
     const [{ data: last, count }, { data: note }, { data: blocked }] = await Promise.all([
       db.from("orders").select("customer_name, address, zone_name, order_type", { count: "exact" }).eq("customer_phone", phone)
         .not("status", "in", "(rejected,pending_payment)").order("created_at", { ascending: false }).limit(1),
@@ -72,11 +91,10 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
     setErr("");
     if (!lines.length) return setErr("Add at least one dish");
     if (type === "delivery" && zones.length && !zone) return setErr("Choose the delivery area");
+    if (!validPhone(normalisePhone(form.phone, settings.phone_country_code))) return setErr("Enter a valid mobile number");
     setBusy(true);
-    const res = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const ref = crypto.randomUUID();
+    const body = {
         source,
         order_type: type,
         customer_name: form.name,
@@ -87,8 +105,22 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
         payment_method: "cod",
         promo_code: form.promo.trim() || undefined,
         items: lines.map((l) => ({ id: l.id, qty: l.qty, choiceIds: l.choiceIds })),
-      }),
-    });
+    };
+    if (!navigator.onLine) return saveOffline(ref, body);
+    let res: Response;
+    try {
+      res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, client_ref: ref }),
+        signal: AbortSignal.timeout(20000),
+      });
+    } catch (e) {
+      if (isNetworkError(e)) return saveOffline(ref, body); // connection dropped — same ref, so it can't be saved twice
+      setBusy(false);
+      return setErr("Could not place the order");
+    }
+    if ([502, 503, 504].includes(res.status)) return saveOffline(ref, body);
     const d = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setErr(d.error || "Could not place the order");
@@ -96,11 +128,54 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
     setDone({ id: d.id, no: d.order_no, total: Number(row?.total ?? subtotal + fee), name: form.name, phone: normalisePhone(form.phone, settings.phone_country_code), type });
   }
 
+  /** No internet: keep the order on this device; it uploads automatically when the connection is back. */
+  function saveOffline(ref: string, body: Record<string, unknown>) {
+    const placedAt = new Date().toISOString();
+    const tempNo = nextTempNo();
+    const dp = cur.decimals ?? 2;
+    const phone = normalisePhone(form.phone, settings.phone_country_code);
+    const items = lines.map((l) => ({
+      id: l.key, order_id: ref, menu_item_id: l.id, name: l.name, unit_price: l.unit, qty: l.qty, line_total: roundMoney(l.unit * l.qty, dp), options: l.options,
+    }));
+    const preview: Order = {
+      id: ref, order_no: 0, offline_no: tempNo, status: "new", order_type: type, customer_name: form.name.trim(), customer_phone: phone,
+      address: type === "delivery" ? form.address.trim() : "", zone_name: type === "delivery" ? zone?.name ?? "" : "", notes: form.notes.trim(),
+      scheduled_for: null, promo_code: null, discount: 0, location_lat: null, location_lng: null, source, created_by_name: "",
+      subtotal, delivery_fee: fee, total: roundMoney(subtotal + fee, dp), vat_percent: Number(settings.vat_percent) || 0,
+      payment_method: "cod", payment_status: "unpaid", printed_at: null, created_at: placedAt, order_items: items,
+    };
+    const q: QueuedOrder = { ref, placedAt, tempNo, body: { ...body, promo_code: undefined }, preview };
+    enqueue(q);
+    setBusy(false);
+    setDone({ id: ref, no: 0, total: preview.total, name: preview.customer_name, phone, type, offline: q });
+  }
+
   function reset() {
     setDone(null);
     setLines([]);
     setKnown(null);
     setForm({ phone: "", name: "", address: "", zoneId: "", notes: "", promo: "" });
+  }
+
+  if (done?.offline) {
+    const q = done.offline;
+    return (
+      <div className="mx-auto max-w-md space-y-4 py-6 text-center" data-testid="new-order-offline">
+        <div className="text-5xl">📴</div>
+        <h1 className="text-2xl font-bold">Saved offline as {q.tempNo}</h1>
+        <p className="text-muted">
+          Total {money(done.total, cur)} (cash). No internet right now, so it&apos;s saved on this device and uploads automatically when the
+          connection is back — then it gets its real order number and appears on the Orders screen.
+        </p>
+        <button type="button" className="btn w-full" onClick={() => { printOrder(q.preview, settings, printMode()); enqueue({ ...q, printed: true }); }}>
+          🖨️ Print ticket
+        </button>
+        <div className="flex gap-2">
+          <button type="button" className="btn-ghost flex-1" onClick={reset}>+ Another order</button>
+          <Link href="/admin" className="btn-ghost flex-1">Go to Orders</Link>
+        </div>
+      </div>
+    );
   }
 
   if (done) {
@@ -195,7 +270,7 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
             </div>
             <div>
               <label className="label" htmlFor="no-promo">Promo code</label>
-              <input id="no-promo" className="input uppercase" value={form.promo} onChange={(e) => setForm({ ...form, promo: e.target.value })} />
+              <input id="no-promo" className="input uppercase" disabled={!online} placeholder={online ? "" : "Needs internet"} value={online ? form.promo : ""} onChange={(e) => setForm({ ...form, promo: e.target.value })} />
             </div>
           </div>
         </div>
@@ -253,7 +328,8 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
           <p className="text-xs text-muted">Loyalty rewards and promo codes are applied when you place it.</p>
         </div>
         {err && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{err}</p>}
-        <button className="btn w-full py-3" disabled={busy}>{busy ? "Placing…" : "Place order"}</button>
+        {!online && <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900" data-testid="offline-hint">📴 No internet — the order will be saved on this device and uploaded later. Promo codes and loyalty rewards need internet.</p>}
+        <button className="btn w-full py-3" disabled={busy}>{busy ? "Placing…" : online ? "Place order" : "Save order (offline)"}</button>
       </aside>
 
       {picking && (

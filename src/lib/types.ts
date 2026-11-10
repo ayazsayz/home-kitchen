@@ -187,6 +187,8 @@ export type Order = {
   edit_note?: string;
   source?: "web" | "whatsapp" | "phone" | "walkin";
   created_by_name?: string;
+  /** "OFF-3" for an order taken offline and not uploaded yet (printed instead of the order number) */
+  offline_no?: string;
   /** staff note about this customer (loaded on the Orders screen, not stored on the order) */
   customer_note?: string;
   subtotal: number;
