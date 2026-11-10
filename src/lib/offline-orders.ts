@@ -59,6 +59,14 @@ export function updateQueued(ref: string, patch: Partial<QueuedOrder>) {
 /** True when the request failed because there is no connection (not because the server said no). */
 export const isNetworkError = (e: unknown) => e instanceof TypeError || (e instanceof DOMException && e.name === "AbortError");
 
+let localServer = false;
+/** Docker / offline installs: the app's server is on the shop network, so "no internet" doesn't mean "can't reach it". */
+export function setLocalServer(v: boolean) {
+  localServer = v;
+}
+/** Can we reach the app's server? (Real failures are still caught when sending.) */
+export const netOnline = () => localServer || typeof navigator === "undefined" || navigator.onLine;
+
 export type SyncResult = { sent: { tempNo: string; orderNo: number }[]; failed: number; offline: boolean; signIn: boolean };
 
 let running: Promise<SyncResult> | null = null;
@@ -70,7 +78,7 @@ export function syncOffline(opts: { retryFailed?: boolean } = {}): Promise<SyncR
     const out: SyncResult = { sent: [], failed: 0, offline: false, signIn: false };
     const list = queued().filter((q) => opts.retryFailed || !q.error);
     if (!list.length) return out;
-    if (typeof navigator !== "undefined" && !navigator.onLine) return { ...out, offline: true };
+    if (!netOnline()) return { ...out, offline: true };
     try {
       await supabaseBrowser().auth.getSession(); // refreshes an expired sign-in before uploading
     } catch {}

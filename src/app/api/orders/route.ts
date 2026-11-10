@@ -2,6 +2,7 @@ import { isLang } from "@/lib/i18n";
 import { clientHash, screenOrder } from "@/lib/safety";
 import { currentStaff } from "@/lib/require-staff";
 import { NextResponse } from "next/server";
+import { features } from "@/lib/mode";
 import { supabaseAdmin } from "@/lib/supabase-server";
 import { currencyOf, money, roundMoney } from "@/lib/format";
 import { normalisePhone, validPhone } from "@/lib/region";
@@ -75,6 +76,7 @@ export async function POST(req: Request) {
   const source = body.source && ["whatsapp", "phone", "walkin"].includes(body.source) ? body.source : "web";
   const staff = source === "web" ? null : await currentStaff();
   if (source !== "web" && (!staff || !["owner", "manager", "cook"].includes(staff.role))) return bad("Please sign in as staff", 401);
+  if (source === "web" && !features().customerSite) return bad("Online ordering is switched off in this install", 403);
 
   const db = supabaseAdmin();
 

@@ -4,7 +4,7 @@ import { money, currencyOf } from "@/lib/format";
 import { printOrder } from "@/lib/ticket";
 import { timeShort } from "@/lib/tz";
 import {
-  OFFLINE_EVENT, printMode, queued, registerSW, removeQueued, syncOffline, updateQueued, warmOfflinePages, type QueuedOrder,
+  OFFLINE_EVENT, netOnline, printMode, queued, registerSW, removeQueued, setLocalServer, syncOffline, updateQueued, warmOfflinePages, type QueuedOrder,
 } from "@/lib/offline-orders";
 import type { Settings } from "@/lib/types";
 
@@ -14,7 +14,8 @@ export const SETTINGS_KEY = "hk_offline_settings_v1"; // shop details for printi
  * Shown on every staff screen: "No internet" notice, orders saved on this device and waiting to upload,
  * and the upload result. Uploads run automatically when the connection comes back (and every 30 s).
  */
-export default function OfflineBar({ role }: { role: string }) {
+export default function OfflineBar({ role, local = false }: { role: string; local?: boolean }) {
+  setLocalServer(local); // set before children use it
   const [online, setOnline] = useState(true);
   const [list, setList] = useState<QueuedOrder[]>([]);
   const [open, setOpen] = useState(false);
@@ -44,8 +45,8 @@ export default function OfflineBar({ role }: { role: string }) {
       setOnline(true);
       run();
     };
-    const down = () => setOnline(false);
-    setOnline(navigator.onLine);
+    const down = () => setOnline(netOnline());
+    setOnline(netOnline());
     refresh();
     window.addEventListener(OFFLINE_EVENT, refresh);
     window.addEventListener("storage", refresh);
@@ -53,7 +54,7 @@ export default function OfflineBar({ role }: { role: string }) {
     window.addEventListener("offline", down);
     run();
     const t = setInterval(() => run(), 30000);
-    if (navigator.onLine && role !== "driver") warmOfflinePages(["/admin", "/admin/new-order"]);
+    if (netOnline() && role !== "driver") warmOfflinePages(["/admin", "/admin/new-order"]);
     return () => {
       window.removeEventListener(OFFLINE_EVENT, refresh);
       window.removeEventListener("storage", refresh);

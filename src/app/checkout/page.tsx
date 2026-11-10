@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { features } from "@/lib/mode";
 import { getAvailability, getMenu, getSettings, getZones } from "@/lib/data";
 import { cardAvailable } from "@/lib/payments/service";
 import CheckoutClient from "@/components/CheckoutClient";
@@ -7,6 +9,7 @@ import { currentLang, offeredLangs } from "@/lib/lang-server";
 export const dynamic = "force-dynamic";
 
 export default async function Checkout() {
+  if (!features().customerSite) redirect("/admin"); // offline install: staff screens only
   const [settings, zones] = await Promise.all([getSettings(), getZones()]);
   const [availability, lang, menu] = await Promise.all([getAvailability(settings), currentLang(settings), getMenu()]);
   return (

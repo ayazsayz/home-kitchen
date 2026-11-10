@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { features } from "@/lib/mode";
 import { getMenu, getOrder, getSettings } from "@/lib/data";
 import { reorderLines } from "@/lib/reorder";
 import ReorderButton from "@/components/ReorderButton";
@@ -40,6 +41,7 @@ export default async function OrderPage({
 }) {
   const { id } = await params;
   const { payment } = await searchParams;
+  if (!features().customerSite) redirect("/admin"); // offline install: staff screens only
 
   let order = await getOrder(id);
   if (!order) notFound();

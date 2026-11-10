@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { features } from "@/lib/mode";
 import { getAvailability, getMenu, getSettings } from "@/lib/data";
 import { cardAvailable } from "@/lib/payments/service";
 import { remainingFor, soldByDay } from "@/lib/stock";
@@ -21,6 +23,7 @@ export async function generateMetadata() {
 }
 
 export default async function Home() {
+  if (!features().customerSite) redirect("/admin"); // offline install: staff screens only
   const [settings, menu] = await Promise.all([getSettings(), getMenu()]);
   const limited = menu.items.filter((i) => i.daily_limit != null);
   const [availability, sold, lang, rev, best] = await Promise.all([
