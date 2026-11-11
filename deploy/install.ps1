@@ -5,13 +5,14 @@ param(
   [string]$TimeZone = "Asia/Karachi",
   [int]$Port = 3000
 )
-$ErrorActionPreference = "Stop"
+# Docker prints progress on stderr; Windows PowerShell would treat that as an error, so check exit codes instead.
+$ErrorActionPreference = "Continue"
 $deploy = $PSScriptRoot
 $root = Split-Path $deploy -Parent
 Set-Location $root
 
 Write-Host "`n== Home Kitchen install ($Mode) ==" -ForegroundColor Cyan
-try { docker info *> $null } catch { }
+$null = & docker version --format "{{.Server.Version}}" 2>$null
 if ($LASTEXITCODE -ne 0) { Write-Host "Docker Desktop is not running. Start it, wait until it says 'Running', then run this again." -ForegroundColor Red; exit 1 }
 
 # 1. Settings + secrets (deploy\.env), made inside Docker so Node isn't needed on the PC
@@ -25,7 +26,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host "Start failed. See: docker compose -f depl
 Write-Host "Waiting for the app to start..."
 $ok = $false
 for ($i = 0; $i -lt 90; $i++) {
-  try { Invoke-WebRequest -UseBasicParsing "http://localhost:$Port/admin/login" -TimeoutSec 5 *> $null; $ok = $true; break } catch { Start-Sleep 5 }
+  try { $null = Invoke-WebRequest -UseBasicParsing "http://localhost:$Port/admin/login" -TimeoutSec 5 -ErrorAction Stop; $ok = $true; break } catch { Start-Sleep 5 }
 }
 if (-not $ok) { Write-Host "The app didn't answer yet. Check: docker compose -f deploy/docker-compose.yml logs app" -ForegroundColor Yellow }
 
