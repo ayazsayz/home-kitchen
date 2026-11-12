@@ -8,7 +8,7 @@ import { optionsText } from "@/lib/options";
 import { whatsappLink } from "@/lib/whatsapp";
 import OptionsSheet from "@/components/OptionsSheet";
 import { printOrder } from "@/lib/ticket";
-import { enqueue, isNetworkError, nextTempNo, printMode, type QueuedOrder } from "@/lib/offline-orders";
+import { enqueue, isNetworkError, netOnline, nextTempNo, printMode, type QueuedOrder } from "@/lib/offline-orders";
 import { SETTINGS_KEY } from "./OfflineBar";
 import type { Category, DeliveryZone, MenuItem, Order, PickedOption, Settings } from "@/lib/types";
 
@@ -39,7 +39,7 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
     try {
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     } catch {}
-    const on = () => setOnline(navigator.onLine);
+    const on = () => setOnline(netOnline());
     on();
     window.addEventListener("online", on);
     window.addEventListener("offline", on);
@@ -59,7 +59,7 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
   /** Fill in a returning customer's details from their last order. */
   async function lookup() {
     const phone = normalisePhone(form.phone, settings.phone_country_code);
-    if (!validPhone(phone) || !navigator.onLine) return setKnown(null);
+    if (!validPhone(phone) || !netOnline()) return setKnown(null);
     const [{ data: last, count }, { data: note }, { data: blocked }] = await Promise.all([
       db.from("orders").select("customer_name, address, zone_name, order_type", { count: "exact" }).eq("customer_phone", phone)
         .not("status", "in", "(rejected,pending_payment)").order("created_at", { ascending: false }).limit(1),
@@ -106,7 +106,7 @@ export default function NewOrder({ settings, categories, items, zones }: { setti
         promo_code: form.promo.trim() || undefined,
         items: lines.map((l) => ({ id: l.id, qty: l.qty, choiceIds: l.choiceIds })),
     };
-    if (!navigator.onLine) return saveOffline(ref, body);
+    if (!netOnline()) return saveOffline(ref, body);
     let res: Response;
     try {
       res = await fetch("/api/orders", {

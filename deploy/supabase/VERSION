@@ -1,0 +1,1 @@
+Official Supabase self-hosting files (github.com/supabase/supabase/tree/master/docker), commit c8aad26, copied 2026-11-10. Unchanged — Home Kitchen adds its own services in ../docker-compose.yml.

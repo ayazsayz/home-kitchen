@@ -1,0 +1,10 @@
+# Changes to the official Supabase services (kept out of ./supabase so that folder stays unchanged).
+services:
+  db:
+    volumes:
+      # Database files in a Docker volume instead of a Windows folder: a Windows folder makes Postgres so slow
+      # that it never finishes starting ("the database system is starting up"). Backups go to BACKUP_DIR as before.
+      - hk-db-data:/var/lib/postgresql/data
+
+volumes:
+  hk-db-data:

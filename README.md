@@ -56,6 +56,10 @@ Printing options per device: kitchen ticket (big quantities, no prices), custome
 - VAT: prices are treated as VAT-inclusive. Leave VAT at 0 unless the business is VAT-registered; with VAT > 0 and a TRN, the receipt prints as a tax invoice.
 - Time zone, phone format and currency are set in Settings (defaults: UAE / Dubai / AED).
 
+## Install on the client's own PC (Docker / offline)
+
+The same app also runs on a shop laptop or the client's own server with Docker, with or without internet (`APP_MODE=docker` or `offline`; offline switches the customer website off). See **[deploy/README.md](deploy/README.md)** — one install script, daily backups, updates.
+
 ## Upgrading an existing install
 
 When a new `supabase/migrations/NNN_*.sql` file appears, run it once in Supabase → SQL Editor **before** the new version goes live. Migrations only add things, so the running site keeps working while you do it.

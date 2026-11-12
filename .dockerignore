@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.env*
+!.env.example
+deploy/.env
+deploy/backups
+deploy/supabase/volumes/db/data
+deploy/supabase/volumes/storage
+*.tsbuildinfo

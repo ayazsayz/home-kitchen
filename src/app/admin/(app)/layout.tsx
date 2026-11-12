@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import AdminNav from "@/components/admin/AdminNav";
 import OfflineBar from "@/components/admin/OfflineBar";
+import { features } from "@/lib/mode";
 import { currentStaff } from "@/lib/require-staff";
 
 export const metadata: Metadata = {
@@ -15,7 +16,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const me = await currentStaff();
   return (
     <div className="min-h-dvh">
-      <OfflineBar role={me?.role ?? "cook"} />
+      <OfflineBar role={me?.role ?? "cook"} local={features().localServer} />
       <AdminNav role={me?.role ?? "cook"} name={me?.name ?? ""} />
       <div className="mx-auto max-w-6xl px-4 py-6">{children}</div>
     </div>
