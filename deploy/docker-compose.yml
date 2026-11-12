@@ -5,7 +5,9 @@
 name: home-kitchen
 
 include:
-  - path: ./supabase/docker-compose.yml
+  - path:
+      - ./supabase/docker-compose.yml
+      - ./supabase-overrides.yml
     env_file: ./.env
 
 x-app-env: &app-env

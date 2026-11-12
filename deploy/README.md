@@ -51,6 +51,7 @@ Windows `deploy\update.ps1`, Linux/macOS `sh deploy/update.sh` — takes a backu
 
 ## How it fits together
 - `supabase/` — the official Supabase self-hosting files, unchanged (version in `supabase/VERSION`).
+- `supabase-overrides.yml` — the database files live in a Docker volume (a Windows folder is too slow for Postgres).
 - `docker-compose.yml` — includes them and adds: `migrate` (runs `supabase/schema.sql` + new migrations once, tracked in `hk_internal.migrations`), `app` (this app, `APP_MODE` from `.env`), `scheduler` (daily summary + backups).
 - The app image is built on the PC; the browser reaches Supabase at port 8000 of whatever address it opened the app from, the app server uses `http://kong:8000` inside Docker.
 
