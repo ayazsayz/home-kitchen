@@ -166,6 +166,13 @@ export function printWidthTest(layout: PrintLayout = getLayout()) {
   <div style="text-align:center;font:12px monospace">Pick the widest box with<br/>BOTH side lines printed</div>${boxes}<div style="height:8mm"></div></body></html>`);
 }
 
+/** Prints any short report (e.g. the day closing) on the receipt printer, same layout as tickets. */
+export function printReport(title: string, bodyHtml: string) {
+  const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+  return printHtml(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>${css(getLayout())}</style></head>
+  <body><div class="ticket">${bodyHtml}</div><div class="cut"></div></body></html>`);
+}
+
 function printHtml(html: string): Promise<void> {
   return new Promise((resolve) => {
     const frame = document.createElement("iframe");
