@@ -1,5 +1,5 @@
-import SalesReport from "@/components/admin/SalesReport";
+import SalesDashboard from "@/components/admin/sales/SalesDashboard";
 
 export default function SalesPage() {
-  return <SalesReport />;
+  return <SalesDashboard />;
 }
