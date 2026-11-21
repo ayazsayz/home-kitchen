@@ -328,13 +328,14 @@ export function Stepper({ qty, onChange, max, full }: { qty: number; onChange: (
 }
 
 /** Food emoji for dishes without a photo. */
-export function emojiFor(name: string) {
+export function emojiFor(name: string, category = "") {
   const n = name.toLowerCase();
+  if (/burger|patty|smash|slider|zinger/.test(`${n} ${category.toLowerCase()}`)) return "🍔";
   const map: [RegExp, string][] = [
-    [/burger|patty/, "🍔"], [/fries|chips/, "🍟"], [/pizza/, "🍕"], [/wrap|shawarma|roll/, "🌯"], [/sandwich|sub/, "🥪"],
+    [/fries|chips/, "🍟"], [/pizza/, "🍕"], [/wrap|shawarma|roll/, "🌯"], [/sandwich|sub/, "🥪"],
     [/biryani|rice|pulao|chawal/, "🍛"], [/karahi|curry|daal|dal|qorma|handi/, "🍲"], [/chicken|wing|tikka|broast/, "🍗"],
     [/naan|bread|paratha|roti/, "🫓"], [/salad/, "🥗"], [/sauce|dip|mayo/, "🥫"], [/cheese/, "🧀"], [/bacon|bologna|sausage/, "🥓"],
-    [/cake|dessert|brownie|kheer/, "🍰"], [/ice ?cream|shake/, "🍨"], [/tea|chai|coffee/, "☕"], [/juice|drink|cola|soda|water|lassi/, "🥤"],
+    [/cake|dessert|brownie|kheer/, "🍰"], [/ice ?cream|shake/, "🍨"], [/\b(tea|chai|coffee)\b/, "☕"], [/\b(juice|drink|cola|soda|water|lassi|margarita|mojito|lemonade|mint)\b/, "🥤"],
   ];
   return map.find(([re]) => re.test(n))?.[1] ?? "🍽️";
 }
